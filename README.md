@@ -14,7 +14,7 @@ This module is to be used along with the resource clumio_gcp_connection as some 
 Below is an example of using the module:
 
 ```hcl
-// Varifies the valid project id is the pass
+// Verifies that a valid project id is passed
 data "google_project" "current" {
   project_id = var.project_id
 }
@@ -24,12 +24,13 @@ resource "clumio_gcp_connection" "this" {
   project_id  = data.google_project.current.project_id
   description = "Onboarded via Terraform"
 }
-# 2) Install GCP resources required by Clumio in your rpoject
+# 2) Install GCP resources required by Clumio in your project
 module "clumio_gcp_connection" {
   providers = {
     clumio = clumio
   }
-  source                = "../../"
+  source = "../../"
+
   clumio_token          = clumio_gcp_connection.this.token
   project_id            = data.google_project.current.project_id
   clumio_aws_account_id = clumio_gcp_connection.this.clumio_aws_account_id
@@ -42,13 +43,14 @@ module "clumio_gcp_connection" {
 
 | Name | Version |
 |------|---------|
+| <a name="requirement_clumio"></a> [clumio](#requirement\_clumio) | >= 0.18.0 |
 | <a name="requirement_google"></a> [google](#requirement\_google) | >= 5.0 |
 
 ## Providers
 
 | Name | Version |
 |------|---------|
-| <a name="provider_clumio"></a> [clumio](#provider\_clumio) | n/a |
+| <a name="provider_clumio"></a> [clumio](#provider\_clumio) | >= 0.18.0 |
 | <a name="provider_google"></a> [google](#provider\_google) | >= 5.0 |
 
 ## Modules

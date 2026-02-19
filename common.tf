@@ -82,22 +82,26 @@ resource "google_project_service" "iam_credentials_api" {
 }
 
 resource "clumio_post_process_gcp_connection" "post_process" {
-  depends_on = [
-    google_service_account_iam_binding.allow_token_creator,
-    google_service_account_iam_binding.allow_wi_user,
-    google_project_service.iam_credentials_api,
-    google_project_service.storage_api,
-    google_project_iam_custom_role.clumio_gcs_backup_permission,
-    google_project_iam_custom_role.clumio_gcs_cai_feed_permission,
-    google_project_iam_custom_role.clumio_gcs_inventory_permission,
-    google_project_iam_custom_role.clumio_gcs_restore_permission,
-    google_project_iam_member.clumio_gcs_backup_permission_iam_binding,
-    google_project_iam_member.clumio_gcs_cai_feed_permission_iam_binding,
-    google_project_iam_member.clumio_gcs_inventory_permission_iam_binding,
-    google_project_iam_member.clumio_gcs_restore_permission_iam_binding
-    # When adding or removing resources update this list
-    # This ensures that the post process call back is made after everything else is provisioned
-  ]
+  depends_on = concat(
+    [
+      google_service_account_iam_binding.allow_token_creator,
+      google_service_account_iam_binding.allow_wi_user,
+      google_project_service.iam_credentials_api,
+    ],
+    var.is_gcs_enabled ? [
+      google_project_service.storage_api,
+      google_project_iam_custom_role.clumio_gcs_backup_permission,
+      google_project_iam_custom_role.clumio_gcs_cai_feed_permission,
+      google_project_iam_custom_role.clumio_gcs_inventory_permission,
+      google_project_iam_custom_role.clumio_gcs_restore_permission,
+      google_project_iam_member.clumio_gcs_backup_permission_iam_binding,
+      google_project_iam_member.clumio_gcs_cai_feed_permission_iam_binding,
+      google_project_iam_member.clumio_gcs_inventory_permission_iam_binding,
+      google_project_iam_member.clumio_gcs_restore_permission_iam_binding
+      # When adding or removing resources update this list
+      # This ensures that the post process call back is made after everything else is provisioned
+    ] : []
+  )
 
   project_id            = var.project_id
   project_name          = data.google_project.current.name

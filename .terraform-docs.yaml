@@ -2,7 +2,6 @@ formatter: "md doc" # this is required
 
 version: ""
 
-header-from: "main.tf"
 footer-from: ""
 
 recursive:

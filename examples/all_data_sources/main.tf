@@ -1,4 +1,4 @@
-// Varifies the valid project id is the pass
+// Verifies that a valid project id is passed
 data "google_project" "current" {
   project_id = var.project_id
 }
@@ -8,7 +8,7 @@ resource "clumio_gcp_connection" "this" {
   project_id  = data.google_project.current.project_id
   description = "Onboarded via Terraform"
 }
-# 2) Install GCP resources required by Clumio in your rpoject
+# 2) Install GCP resources required by Clumio in your project
 module "clumio_gcp_connection" {
   providers = {
     clumio = clumio
