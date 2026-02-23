@@ -20,6 +20,26 @@ resource "google_project_iam_custom_role" "clumio_gcs_inventory_permission" {
   title       = "ClumioGCSInventoryPermissions"
   description = "Allow read only access to list and inspect GCS buckets for Clumio inventory"
   permissions = [
+    "storage.buckets.list",
+    "storage.buckets.get",
+  ]
+  stage = "GA"
+}
+
+resource "google_project_iam_member" "clumio_gcs_inventory_permission_iam_binding" {
+  count   = var.is_gcs_enabled ? 1 : 0
+  project = var.project_id
+  role    = "projects/${var.project_id}/roles/${google_project_iam_custom_role.clumio_gcs_inventory_permission[0].role_id}"
+  member  = "serviceAccount:${google_service_account.federated_sa.email}"
+}
+
+resource "google_project_iam_custom_role" "clumio_gcs_backup_permission" {
+  count       = var.is_gcs_enabled ? 1 : 0
+  project     = var.project_id
+  role_id     = "GCSBackupPermissions_${local.sanitized_clumio_token}"
+  title       = "ClumioGCSBackupPermissions"
+  description = "Allows read only access to GCS objects for Clumio backup"
+  permissions = [
     # AWS: s3:ListAllMyBuckets
     "storage.buckets.list",
     # AWS: s3:GetBucketLocation, s3:GetEncryptionConfiguration, s3:GetBucketVersioning,
@@ -40,28 +60,6 @@ resource "google_project_iam_custom_role" "clumio_gcs_inventory_permission" {
     "storageinsights.reportConfigs.create",
     "storageinsights.reportConfigs.update",
     "storageinsights.reportConfigs.delete",
-  ]
-  stage = "GA"
-}
-
-resource "google_project_iam_member" "clumio_gcs_inventory_permission_iam_binding" {
-  count   = var.is_gcs_enabled ? 1 : 0
-  project = var.project_id
-  role    = "projects/${var.project_id}/roles/${google_project_iam_custom_role.clumio_gcs_inventory_permission[0].role_id}"
-  member  = "serviceAccount:${google_service_account.federated_sa.email}"
-}
-
-resource "google_project_iam_custom_role" "clumio_gcs_backup_permission" {
-  count       = var.is_gcs_enabled ? 1 : 0
-  project     = var.project_id
-  role_id     = "GCSBackupPermissions_${local.sanitized_clumio_token}"
-  title       = "ClumioGCSBackupPermissions"
-  description = "Allows read only access to GCS objects for Clumio backup"
-  permissions = [
-    # AWS: s3:GetObject, s3:GetObjectVersion, s3:GetObjectTagging, s3:GetObjectVersionTagging
-    "storage.objects.get",
-    # AWS: s3:ListBucket, s3:ListBucketVersions, s3:ListBucketMultipartUploads
-    "storage.objects.list",
   ]
   stage = "GA"
 }
