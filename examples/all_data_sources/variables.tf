@@ -12,6 +12,7 @@ variable "clumio_api_token" {
 #   US East (N. Virginia): https://us-east-1.api.clumio.com
 #   EU (Frankfurt): https://eu-central-1.api.clumio.com
 #   AU (Sydney): https://ap-southeast-2.au.api.clumio.com
+#   CA (Central): https://ca-central-1.ca.api.clumio.com
 
 variable "clumio_api_base_url" {
   description = "The base API URL for the Clumio service."
