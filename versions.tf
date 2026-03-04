@@ -5,8 +5,7 @@ terraform {
       version = ">= 5.0"
     }
     clumio = {
-      source  = "clumio-code/clumio"
-      version = ">= 0.18.0"
+      source = "clumio-code/clumio"
     }
   }
 }

@@ -3,13 +3,13 @@ variable "project_id" {
   type        = string
 }
 
-variable "clumio_aws_account_id" {
-  description = "Clumio Control Plane Account Id."
+variable "clumio_control_plane_id" {
+  description = "Clumio control plane Account Id."
   type        = string
 }
 
-variable "clumio_aws_iam_role" {
-  description = "Clumio AWS IAM Role name that will federate into GCP"
+variable "clumio_control_plane_role" {
+  description = "Clumio control plane Role name that will federate into GCP"
   type        = string
 }
 

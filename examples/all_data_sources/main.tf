@@ -15,9 +15,9 @@ module "clumio_gcp_connection" {
   }
   source = "../../"
 
-  clumio_token          = clumio_gcp_connection.this.token
-  project_id            = data.google_project.current.project_id
-  clumio_aws_account_id = clumio_gcp_connection.this.clumio_aws_account_id
-  clumio_aws_iam_role   = clumio_gcp_connection.this.clumio_aws_iam_role
-  is_gcs_enabled        = true
+  clumio_token              = clumio_gcp_connection.this.token
+  project_id                = data.google_project.current.project_id
+  clumio_control_plane_id   = clumio_gcp_connection.this.clumio_control_plane_id
+  clumio_control_plane_role = clumio_gcp_connection.this.clumio_control_plane_role
+  is_gcs_enabled            = true
 }

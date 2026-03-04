@@ -13,6 +13,20 @@ resource "google_project_service" "storage_api" {
   disable_on_destroy = false
 }
 
+resource "google_project_service" "storagetransfer" {
+  project = var.project_id
+  service = "storagetransfer.googleapis.com"
+
+  disable_on_destroy = false
+}
+
+resource "google_project_service" "storageinsights" {
+  project = var.project_id
+  service = "storageinsights.googleapis.com"
+
+  disable_on_destroy = false
+}
+
 resource "google_project_iam_custom_role" "clumio_gcs_inventory_permission" {
   count       = var.is_gcs_enabled ? 1 : 0
   project     = var.project_id
@@ -60,6 +74,11 @@ resource "google_project_iam_custom_role" "clumio_gcs_backup_permission" {
     "storageinsights.reportConfigs.create",
     "storageinsights.reportConfigs.update",
     "storageinsights.reportConfigs.delete",
+
+    "storagetransfer.jobs.create",
+    "storagetransfer.jobs.list",
+    "storagetransfer.jobs.get",
+    "storagetransfer.jobs.update",
   ]
   stage = "GA"
 }

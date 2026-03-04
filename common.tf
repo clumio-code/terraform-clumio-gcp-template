@@ -11,8 +11,8 @@ locals {
   # Always update the config_version when updating this file
   config_version = "1.0"
 
-  clumio_role_arn         = "arn:aws:iam::${var.clumio_aws_account_id}:role/${var.clumio_aws_iam_role}"
-  clumio_assumed_role_arn = "arn:aws:sts::${var.clumio_aws_account_id}:assumed-role/${var.clumio_aws_iam_role}/"
+  clumio_role_arn         = "arn:aws:iam::${var.clumio_control_plane_id}:role/${var.clumio_control_plane_role}"
+  clumio_assumed_role_arn = "arn:aws:sts::${var.clumio_control_plane_id}:assumed-role/${var.clumio_control_plane_role}/"
 }
 
 resource "google_service_account" "federated_sa" {
@@ -40,7 +40,7 @@ resource "google_iam_workload_identity_pool_provider" "aws" {
 
   aws {
     # The AWS account id of the Clumio control plane whose role will federate into GCP.
-    account_id = var.clumio_aws_account_id
+    account_id = var.clumio_control_plane_id
   }
 
   attribute_mapping = {
@@ -58,7 +58,7 @@ resource "google_service_account_iam_binding" "allow_wi_user" {
   role               = "roles/iam.workloadIdentityUser"
 
   members = [
-    "principalSet://iam.googleapis.com/projects/${data.google_project.current.number}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.pool.workload_identity_pool_id}/attribute.aws_acct/${var.clumio_aws_account_id}"
+    "principalSet://iam.googleapis.com/projects/${data.google_project.current.number}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.pool.workload_identity_pool_id}/attribute.aws_acct/${var.clumio_control_plane_id}"
   ]
 }
 
@@ -68,7 +68,7 @@ resource "google_service_account_iam_binding" "allow_token_creator" {
   role               = "roles/iam.serviceAccountTokenCreator"
 
   members = [
-    "principalSet://iam.googleapis.com/projects/${data.google_project.current.number}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.pool.workload_identity_pool_id}/attribute.aws_acct/${var.clumio_aws_account_id}"
+    "principalSet://iam.googleapis.com/projects/${data.google_project.current.number}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.pool.workload_identity_pool_id}/attribute.aws_acct/${var.clumio_control_plane_id}"
   ]
 }
 
@@ -82,26 +82,22 @@ resource "google_project_service" "iam_credentials_api" {
 }
 
 resource "clumio_post_process_gcp_connection" "post_process" {
-  depends_on = concat(
-    [
-      google_service_account_iam_binding.allow_token_creator,
-      google_service_account_iam_binding.allow_wi_user,
-      google_project_service.iam_credentials_api,
-    ],
-    var.is_gcs_enabled ? [
-      google_project_service.storage_api,
-      google_project_iam_custom_role.clumio_gcs_backup_permission,
-      google_project_iam_custom_role.clumio_gcs_cai_feed_permission,
-      google_project_iam_custom_role.clumio_gcs_inventory_permission,
-      google_project_iam_custom_role.clumio_gcs_restore_permission,
-      google_project_iam_member.clumio_gcs_backup_permission_iam_binding,
-      google_project_iam_member.clumio_gcs_cai_feed_permission_iam_binding,
-      google_project_iam_member.clumio_gcs_inventory_permission_iam_binding,
-      google_project_iam_member.clumio_gcs_restore_permission_iam_binding
-      # When adding or removing resources update this list
-      # This ensures that the post process call back is made after everything else is provisioned
-    ] : []
-  )
+  depends_on = [
+    google_service_account_iam_binding.allow_token_creator,
+    google_service_account_iam_binding.allow_wi_user,
+    google_project_service.iam_credentials_api,
+    google_project_service.storage_api,
+    google_project_iam_custom_role.clumio_gcs_backup_permission,
+    google_project_iam_custom_role.clumio_gcs_cai_feed_permission,
+    google_project_iam_custom_role.clumio_gcs_inventory_permission,
+    google_project_iam_custom_role.clumio_gcs_restore_permission,
+    google_project_iam_member.clumio_gcs_backup_permission_iam_binding,
+    google_project_iam_member.clumio_gcs_cai_feed_permission_iam_binding,
+    google_project_iam_member.clumio_gcs_inventory_permission_iam_binding,
+    google_project_iam_member.clumio_gcs_restore_permission_iam_binding
+    # When adding or removing resources update this list
+    # This ensures that the post process call back is made after everything else is provisioned
+  ]
 
   project_id            = var.project_id
   project_name          = data.google_project.current.name
@@ -110,7 +106,7 @@ resource "clumio_post_process_gcp_connection" "post_process" {
   service_account_email = google_service_account.federated_sa.email
   wif_pool_id           = google_iam_workload_identity_pool.pool.workload_identity_pool_id
   wif_provider_id       = google_iam_workload_identity_pool_provider.aws.workload_identity_pool_provider_id
-  clumio_aws_iam_role   = local.clumio_role_arn
+  clumio_role_arn       = local.clumio_role_arn
   config_version        = local.config_version
   protect_gcs_version   = local.gcs_version
 }
