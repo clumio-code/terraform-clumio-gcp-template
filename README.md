@@ -31,11 +31,11 @@ module "clumio_gcp_connection" {
   }
   source = "../../"
 
-  clumio_token          = clumio_gcp_connection.this.token
-  project_id            = data.google_project.current.project_id
-  clumio_aws_account_id = clumio_gcp_connection.this.clumio_aws_account_id
-  clumio_aws_iam_role   = clumio_gcp_connection.this.clumio_aws_iam_role
-  is_gcs_enabled        = true
+  clumio_token              = clumio_gcp_connection.this.token
+  project_id                = data.google_project.current.project_id
+  clumio_control_plane_id   = clumio_gcp_connection.this.clumio_control_plane_id
+  clumio_control_plane_role = clumio_gcp_connection.this.clumio_control_plane_role
+  is_gcs_enabled            = true
 }
 ```
 
@@ -74,6 +74,8 @@ No modules.
 | [google_project_iam_member.clumio_gcs_restore_permission_iam_binding](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
 | [google_project_service.iam_credentials_api](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_service) | resource |
 | [google_project_service.storage_api](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_service) | resource |
+| [google_project_service.storageinsights](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_service) | resource |
+| [google_project_service.storagetransfer](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_service) | resource |
 | [google_service_account.federated_sa](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/service_account) | resource |
 | [google_service_account_iam_binding.allow_token_creator](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/service_account_iam_binding) | resource |
 | [google_service_account_iam_binding.allow_wi_user](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/service_account_iam_binding) | resource |
@@ -83,8 +85,8 @@ No modules.
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_clumio_aws_account_id"></a> [clumio\_aws\_account\_id](#input\_clumio\_aws\_account\_id) | Clumio Control Plane Account Id. | `string` | n/a | yes |
-| <a name="input_clumio_aws_iam_role"></a> [clumio\_aws\_iam\_role](#input\_clumio\_aws\_iam\_role) | Clumio AWS IAM Role name that will federate into GCP | `string` | n/a | yes |
+| <a name="input_clumio_control_plane_id"></a> [clumio\_control\_plane\_id](#input\_clumio\_control\_plane\_id) | Clumio control plane Account Id. | `string` | n/a | yes |
+| <a name="input_clumio_control_plane_role"></a> [clumio\_control\_plane\_role](#input\_clumio\_control\_plane\_role) | Clumio control plane Role name that will federate into GCP | `string` | n/a | yes |
 | <a name="input_clumio_federated_aws_service_account_id"></a> [clumio\_federated\_aws\_service\_account\_id](#input\_clumio\_federated\_aws\_service\_account\_id) | The name of the Clumio federated service account. | `string` | `"clumio-federated-aws-user"` | no |
 | <a name="input_clumio_token"></a> [clumio\_token](#input\_clumio\_token) | The GCP integration ID token. | `string` | n/a | yes |
 | <a name="input_clumio_wif_pool_id"></a> [clumio\_wif\_pool\_id](#input\_clumio\_wif\_pool\_id) | Workload Identity Pool ID | `string` | `"clumio-aws-pool"` | no |
