@@ -54,21 +54,14 @@ resource "google_project_iam_custom_role" "clumio_gcs_backup_permission" {
   title       = "ClumioGCSBackupPermissions"
   description = "Allows read only access to GCS objects for Clumio backup"
   permissions = [
-    # AWS: s3:ListAllMyBuckets
+    "storage.objects.list",
+    "storage.objects.get",
     "storage.buckets.list",
-    # AWS: s3:GetBucketLocation, s3:GetEncryptionConfiguration, s3:GetBucketVersioning,
-    # AWS: s3:GetBucketTagging, s3:GetReplicationConfiguration, s3:GetLifecycleConfiguration,
-    # AWS: s3:GetBucketLogging, s3:GetBucketObjectLockConfiguration, s3:GetMetricsConfiguration
     "storage.buckets.get",
-    # AWS: s3:GetBucketPolicy
     "storage.buckets.getIamPolicy",
-    # GCP-only: necessary for receiving Storage Insight Inventory, only allowing
-    # in-project configuration. Clumio will replicate this created bucket to the dataplane.
     "storage.buckets.create",
-    # AWS: cloudwatch:GetMetricStatistics (bucket metrics like object count/size)
     "monitoring.metricDescriptors.list",
     "monitoring.timeSeries.list",
-    # AWS: s3:GetInventoryConfiguration, s3:PutInventoryConfiguration
     "storageinsights.reportConfigs.get",
     "storageinsights.reportConfigs.list",
     "storageinsights.reportConfigs.create",
@@ -97,11 +90,8 @@ resource "google_project_iam_custom_role" "clumio_gcs_restore_permission" {
   title       = "ClumioGCSRestorePermissions"
   description = "Allow write access to GCS objects for Clumio restore"
   permissions = [
-    # AWS: s3:PutObject
     "storage.objects.create",
-    # AWS: s3:DeleteObject (creates delete markers when bucket versioning is enabled)
     "storage.objects.delete",
-    # AWS: s3:PutObjectTagging
     "storage.objects.update",
   ]
   stage = "GA"
@@ -121,15 +111,10 @@ resource "google_project_iam_custom_role" "clumio_gcs_cai_feed_permission" {
   title       = "ClumioGCSCAIFeedPermissions"
   description = "Allow Cloud Asset Inventory feed management for GCS change ingestion"
   permissions = [
-    # AWS: events:DescribeRule
     "cloudasset.feeds.get",
-    # AWS: events:ListTargetsByRule
     "cloudasset.feeds.list",
-    # AWS: events:PutRule, events:PutTargets
     "cloudasset.feeds.create",
-    # AWS: events:PutRule, events:PutTargets (updates)
     "cloudasset.feeds.update",
-    # AWS: events:DeleteRule, events:RemoveTargets
     "cloudasset.feeds.delete",
   ]
   stage = "GA"

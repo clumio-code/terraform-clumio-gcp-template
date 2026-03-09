@@ -10,9 +10,6 @@ locals {
   sanitized_clumio_token = replace(var.clumio_token, "-", "")
   # Always update the config_version when updating this file
   config_version = "1.0"
-
-  clumio_role_arn         = "arn:aws:iam::${var.clumio_control_plane_id}:role/${var.clumio_control_plane_role}"
-  clumio_assumed_role_arn = "arn:aws:sts::${var.clumio_control_plane_id}:assumed-role/${var.clumio_control_plane_role}/"
 }
 
 resource "google_service_account" "federated_sa" {
@@ -49,7 +46,7 @@ resource "google_iam_workload_identity_pool_provider" "aws" {
     "attribute.aws_acct" = "assertion.account"
   }
   # Limit to assumed roles from the specified Clumio IAM role only.
-  attribute_condition = "assertion.arn.startsWith('${local.clumio_assumed_role_arn}')"
+  attribute_condition = "assertion.arn.startsWith('${var.clumio_control_plane_role}')"
 }
 
 resource "google_service_account_iam_binding" "allow_wi_user" {
@@ -106,7 +103,6 @@ resource "clumio_post_process_gcp_connection" "post_process" {
   service_account_email = google_service_account.federated_sa.email
   wif_pool_id           = google_iam_workload_identity_pool.pool.workload_identity_pool_id
   wif_provider_id       = google_iam_workload_identity_pool_provider.aws.workload_identity_pool_provider_id
-  clumio_role_arn       = local.clumio_role_arn
   config_version        = local.config_version
   protect_gcs_version   = local.gcs_version
 }
