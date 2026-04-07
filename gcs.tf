@@ -20,9 +20,62 @@ resource "google_project_service" "storagetransfer" {
   disable_on_destroy = false
 }
 
+resource "google_project_service" "pubsub" {
+  count   = var.is_gcs_enabled ? 1 : 0
+  project = var.project_id
+  service = "pubsub.googleapis.com"
+
+  disable_on_destroy = false
+}
+
+data "google_storage_transfer_project_service_account" "storagetransfer" {
+  count   = var.is_gcs_enabled ? 1 : 0
+  project = var.project_id
+
+  depends_on = [google_project_service.storagetransfer]
+}
+
+resource "google_project_iam_member" "storagetransfer_service_agent_pubsub_editor" {
+  count   = var.is_gcs_enabled ? 1 : 0
+  project = var.project_id
+  role    = "roles/pubsub.editor"
+  member  = data.google_storage_transfer_project_service_account.storagetransfer[0].member
+
+  depends_on = [
+    data.google_storage_transfer_project_service_account.storagetransfer,
+  ]
+}
+
+data "google_storage_project_service_account" "gcs" {
+  count   = var.is_gcs_enabled ? 1 : 0
+  project = var.project_id
+
+  depends_on = [google_project_service.storage_api]
+}
+
+resource "google_project_iam_member" "storage_service_agent_pubsub_publisher" {
+  count   = var.is_gcs_enabled ? 1 : 0
+  project = var.project_id
+  role    = "roles/pubsub.publisher"
+  member  = data.google_storage_project_service_account.gcs[0].member
+
+  depends_on = [
+    google_project_service.pubsub,
+  ]
+}
+
+# Enable Storage Insights so Clumio can configure GCS inventory reports.
 resource "google_project_service" "storageinsights" {
   project = var.project_id
   service = "storageinsights.googleapis.com"
+
+  disable_on_destroy = false
+}
+
+resource "google_project_service" "monitoring_api" {
+  count   = var.is_gcs_enabled ? 1 : 0
+  project = var.project_id
+  service = "monitoring.googleapis.com"
 
   disable_on_destroy = false
 }
@@ -36,6 +89,8 @@ resource "google_project_iam_custom_role" "clumio_gcs_inventory_permission" {
   permissions = [
     "storage.buckets.list",
     "storage.buckets.get",
+    "monitoring.metricDescriptors.list",
+    "monitoring.timeSeries.list",
   ]
   stage = "GA"
 }
@@ -58,20 +113,26 @@ resource "google_project_iam_custom_role" "clumio_gcs_backup_permission" {
     "storage.objects.get",
     "storage.buckets.list",
     "storage.buckets.get",
-    "storage.buckets.getIamPolicy",
+
     "storage.buckets.create",
-    "monitoring.metricDescriptors.list",
-    "monitoring.timeSeries.list",
+    "storage.buckets.getObjectInsights",
+    "storage.buckets.getIamPolicy",
+    "storage.buckets.setIamPolicy",
+
+    "storagetransfer.jobs.create",
+    "storagetransfer.jobs.list",
+    "storagetransfer.jobs.get",
+    "storagetransfer.jobs.update",
+    "storagetransfer.projects.getServiceAccount",
+
     "storageinsights.reportConfigs.get",
     "storageinsights.reportConfigs.list",
     "storageinsights.reportConfigs.create",
     "storageinsights.reportConfigs.update",
     "storageinsights.reportConfigs.delete",
 
-    "storagetransfer.jobs.create",
-    "storagetransfer.jobs.list",
-    "storagetransfer.jobs.get",
-    "storagetransfer.jobs.update",
+    "monitoring.metricDescriptors.list",
+    "monitoring.timeSeries.list",
   ]
   stage = "GA"
 }
