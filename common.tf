@@ -83,6 +83,7 @@ resource "clumio_post_process_gcp_connection" "post_process" {
     google_service_account_iam_binding.allow_token_creator,
     google_service_account_iam_binding.allow_wi_user,
     google_project_service.iam_credentials_api,
+    google_project_service.monitoring_api,
     google_project_service.storage_api,
     google_project_iam_custom_role.clumio_gcs_backup_permission,
     google_project_iam_custom_role.clumio_gcs_cai_feed_permission,
@@ -91,7 +92,9 @@ resource "clumio_post_process_gcp_connection" "post_process" {
     google_project_iam_member.clumio_gcs_backup_permission_iam_binding,
     google_project_iam_member.clumio_gcs_cai_feed_permission_iam_binding,
     google_project_iam_member.clumio_gcs_inventory_permission_iam_binding,
-    google_project_iam_member.clumio_gcs_restore_permission_iam_binding
+    google_project_iam_member.clumio_gcs_restore_permission_iam_binding,
+    google_project_iam_member.storage_service_agent_pubsub_publisher,
+    google_project_iam_member.storagetransfer_service_agent_pubsub_editor
     # When adding or removing resources update this list
     # This ensures that the post process call back is made after everything else is provisioned
   ]
