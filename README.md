@@ -21,8 +21,10 @@ data "google_project" "current" {
 
 # 1) Create the Clumio connection object for this GCP project
 resource "clumio_gcp_connection" "this" {
-  project_id  = data.google_project.current.project_id
-  description = "Onboarded via Terraform"
+  project_id      = data.google_project.current.project_id
+  description     = var.description
+  regions         = var.regions
+  deployment_type = var.deployment_type
 }
 # 2) Install GCP resources required by Clumio in your project
 module "clumio_gcp_connection" {
@@ -35,7 +37,7 @@ module "clumio_gcp_connection" {
   project_id                = data.google_project.current.project_id
   clumio_control_plane_id   = clumio_gcp_connection.this.clumio_control_plane_id
   clumio_control_plane_role = clumio_gcp_connection.this.clumio_control_plane_role
-  is_gcs_enabled            = true
+  is_gcs_enabled            = var.is_gcs_enabled
 }
 ```
 
@@ -43,15 +45,19 @@ module "clumio_gcp_connection" {
 
 | Name | Version |
 |------|---------|
-| <a name="requirement_clumio"></a> [clumio](#requirement\_clumio) | >= 0.18.0 |
+| <a name="requirement_clumio"></a> [clumio](#requirement\_clumio) | >= 0.19.0 |
 | <a name="requirement_google"></a> [google](#requirement\_google) | >= 5.0 |
+| <a name="requirement_google-beta"></a> [google-beta](#requirement\_google-beta) | >= 5.0 |
+| <a name="requirement_random"></a> [random](#requirement\_random) | ~> 3.0 |
 
 ## Providers
 
 | Name | Version |
 |------|---------|
-| <a name="provider_clumio"></a> [clumio](#provider\_clumio) | >= 0.18.0 |
+| <a name="provider_clumio"></a> [clumio](#provider\_clumio) | >= 0.19.0 |
 | <a name="provider_google"></a> [google](#provider\_google) | >= 5.0 |
+| <a name="provider_google-beta"></a> [google-beta](#provider\_google-beta) | >= 5.0 |
+| <a name="provider_random"></a> [random](#provider\_random) | ~> 3.0 |
 
 ## Modules
 
@@ -62,27 +68,37 @@ No modules.
 | Name | Type |
 |------|------|
 | [clumio_post_process_gcp_connection.post_process](https://registry.terraform.io/providers/clumio-code/clumio/latest/docs/resources/post_process_gcp_connection) | resource |
+| [google-beta_google_project_service_identity.cloudasset](https://registry.terraform.io/providers/hashicorp/google-beta/latest/docs/resources/google_project_service_identity) | resource |
+| [google_cloud_asset_project_feed.customer_delta](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/cloud_asset_project_feed) | resource |
 | [google_iam_workload_identity_pool.pool](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/iam_workload_identity_pool) | resource |
 | [google_iam_workload_identity_pool_provider.aws](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/iam_workload_identity_pool_provider) | resource |
 | [google_project_iam_custom_role.clumio_gcs_backup_permission](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_custom_role) | resource |
 | [google_project_iam_custom_role.clumio_gcs_cai_feed_permission](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_custom_role) | resource |
+| [google_project_iam_custom_role.clumio_gcs_delta_federated_sa_policy_permission](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_custom_role) | resource |
+| [google_project_iam_custom_role.clumio_gcs_delta_topic_permission](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_custom_role) | resource |
 | [google_project_iam_custom_role.clumio_gcs_inventory_permission](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_custom_role) | resource |
 | [google_project_iam_custom_role.clumio_gcs_restore_permission](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_custom_role) | resource |
+| [google_project_iam_member.cloudasset_service_agent_pubsub_publisher](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
 | [google_project_iam_member.clumio_gcs_backup_permission_iam_binding](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
 | [google_project_iam_member.clumio_gcs_cai_feed_permission_iam_binding](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
 | [google_project_iam_member.clumio_gcs_inventory_permission_iam_binding](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
 | [google_project_iam_member.clumio_gcs_restore_permission_iam_binding](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
 | [google_project_iam_member.storage_service_agent_pubsub_publisher](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
 | [google_project_iam_member.storagetransfer_service_agent_pubsub_editor](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
+| [google_project_service.cloudasset](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_service) | resource |
 | [google_project_service.iam_credentials_api](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_service) | resource |
 | [google_project_service.monitoring_api](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_service) | resource |
 | [google_project_service.pubsub](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_service) | resource |
 | [google_project_service.storage_api](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_service) | resource |
 | [google_project_service.storageinsights](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_service) | resource |
 | [google_project_service.storagetransfer](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_service) | resource |
+| [google_pubsub_topic.customer_delta](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_topic) | resource |
+| [google_pubsub_topic_iam_member.clumio_gcs_delta_topic_permission_iam_binding](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_topic_iam_member) | resource |
 | [google_service_account.federated_sa](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/service_account) | resource |
 | [google_service_account_iam_binding.allow_token_creator](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/service_account_iam_binding) | resource |
 | [google_service_account_iam_binding.allow_wi_user](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/service_account_iam_binding) | resource |
+| [google_service_account_iam_member.clumio_gcs_delta_federated_sa_policy_permission_iam_binding](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/service_account_iam_member) | resource |
+| [random_id.customer_delta_suffix](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/id) | resource |
 | [google_project.current](https://registry.terraform.io/providers/hashicorp/google/latest/docs/data-sources/project) | data source |
 | [google_storage_project_service_account.gcs](https://registry.terraform.io/providers/hashicorp/google/latest/docs/data-sources/storage_project_service_account) | data source |
 | [google_storage_transfer_project_service_account.storagetransfer](https://registry.terraform.io/providers/hashicorp/google/latest/docs/data-sources/storage_transfer_project_service_account) | data source |

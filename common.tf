@@ -1,5 +1,13 @@
 provider "google" {
-  project = var.project_id
+  project               = var.project_id
+  billing_project       = var.project_id
+  user_project_override = true
+}
+
+provider "google-beta" {
+  project               = var.project_id
+  billing_project       = var.project_id
+  user_project_override = true
 }
 
 data "google_project" "current" {
@@ -9,7 +17,7 @@ data "google_project" "current" {
 locals {
   sanitized_clumio_token = replace(var.clumio_token, "-", "")
   # Always update the config_version when updating this file
-  config_version = "1.0"
+  config_version = "1.1"
 }
 
 resource "google_service_account" "federated_sa" {
@@ -87,14 +95,22 @@ resource "clumio_post_process_gcp_connection" "post_process" {
     google_project_service.storage_api,
     google_project_iam_custom_role.clumio_gcs_backup_permission,
     google_project_iam_custom_role.clumio_gcs_cai_feed_permission,
+    google_project_iam_custom_role.clumio_gcs_delta_federated_sa_policy_permission,
+    google_project_iam_custom_role.clumio_gcs_delta_topic_permission,
     google_project_iam_custom_role.clumio_gcs_inventory_permission,
     google_project_iam_custom_role.clumio_gcs_restore_permission,
     google_project_iam_member.clumio_gcs_backup_permission_iam_binding,
     google_project_iam_member.clumio_gcs_cai_feed_permission_iam_binding,
+    google_pubsub_topic_iam_member.clumio_gcs_delta_topic_permission_iam_binding,
+    google_service_account_iam_member.clumio_gcs_delta_federated_sa_policy_permission_iam_binding,
     google_project_iam_member.clumio_gcs_inventory_permission_iam_binding,
     google_project_iam_member.clumio_gcs_restore_permission_iam_binding,
+    google_project_iam_member.cloudasset_service_agent_pubsub_publisher,
     google_project_iam_member.storage_service_agent_pubsub_publisher,
-    google_project_iam_member.storagetransfer_service_agent_pubsub_editor
+    google_project_iam_member.storagetransfer_service_agent_pubsub_editor,
+    google_project_service.cloudasset,
+    google_pubsub_topic.customer_delta,
+    google_cloud_asset_project_feed.customer_delta,
     # When adding or removing resources update this list
     # This ensures that the post process call back is made after everything else is provisioned
   ]
@@ -108,4 +124,7 @@ resource "clumio_post_process_gcp_connection" "post_process" {
   wif_provider_id       = google_iam_workload_identity_pool_provider.aws.workload_identity_pool_provider_id
   config_version        = local.config_version
   protect_gcs_version   = local.gcs_version
+  properties = var.is_gcs_enabled ? {
+    invsrvgcp_customer_topic_id = google_pubsub_topic.customer_delta[0].id
+  } : null
 }
