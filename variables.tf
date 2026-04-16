@@ -1,10 +1,10 @@
 variable "project_id" {
-  description = "Client GCP project Id."
+  description = "Client GCP project Id"
   type        = string
 }
 
 variable "clumio_control_plane_id" {
-  description = "Clumio control plane Account Id."
+  description = "Clumio control plane Account Id"
   type        = string
 }
 
@@ -14,12 +14,12 @@ variable "clumio_control_plane_role" {
 }
 
 variable "clumio_token" {
-  description = "The GCP integration ID token."
+  description = "The GCP integration ID token"
   type        = string
 }
 
 variable "clumio_federated_aws_service_account_id" {
-  description = "The name of the Clumio federated service account."
+  description = "The name of the Clumio federated service account"
   type        = string
   default     = "clumio-federated-aws-user"
 }
