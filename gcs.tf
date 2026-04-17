@@ -1,6 +1,6 @@
 locals {
   # Always update the gcs_version when updating this file
-  gcs_version = "1.0"
+  gcs_version = "1.2"
 }
 
 # Enable the Google Cloud Storage API
@@ -26,6 +26,23 @@ resource "google_project_service" "pubsub" {
   service = "pubsub.googleapis.com"
 
   disable_on_destroy = false
+}
+
+resource "google_project_service" "cloudasset" {
+  count   = var.is_gcs_enabled ? 1 : 0
+  project = var.project_id
+  service = "cloudasset.googleapis.com"
+
+  disable_on_destroy = false
+}
+
+resource "google_project_service_identity" "cloudasset" {
+  provider = google-beta
+  count    = var.is_gcs_enabled ? 1 : 0
+  project  = var.project_id
+  service  = "cloudasset.googleapis.com"
+
+  depends_on = [google_project_service.cloudasset]
 }
 
 data "google_storage_transfer_project_service_account" "storagetransfer" {
@@ -61,6 +78,18 @@ resource "google_project_iam_member" "storage_service_agent_pubsub_publisher" {
 
   depends_on = [
     google_project_service.pubsub,
+  ]
+}
+
+resource "google_project_iam_member" "cloudasset_service_agent_pubsub_publisher" {
+  count   = var.is_gcs_enabled ? 1 : 0
+  project = var.project_id
+  role    = "roles/pubsub.publisher"
+  member  = google_project_service_identity.cloudasset[0].member
+
+  depends_on = [
+    google_project_service.pubsub,
+    google_project_service_identity.cloudasset,
   ]
 }
 
@@ -107,7 +136,7 @@ resource "google_project_iam_custom_role" "clumio_gcs_backup_permission" {
   project     = var.project_id
   role_id     = "GCSBackupPermissions_${local.sanitized_clumio_token}"
   title       = "ClumioGCSBackupPermissions"
-  description = "Allows read only access to GCS objects for Clumio backup"
+  description = "Allows read only access to GCS objects and manage bucket configuration for Clumio backup"
   permissions = [
     "storage.objects.list",
     "storage.objects.get",
@@ -115,6 +144,7 @@ resource "google_project_iam_custom_role" "clumio_gcs_backup_permission" {
     "storage.buckets.get",
 
     "storage.buckets.create",
+    "storage.buckets.update",
     "storage.buckets.getObjectInsights",
     "storage.buckets.getIamPolicy",
     "storage.buckets.setIamPolicy",
@@ -177,6 +207,7 @@ resource "google_project_iam_custom_role" "clumio_gcs_cai_feed_permission" {
     "cloudasset.feeds.create",
     "cloudasset.feeds.update",
     "cloudasset.feeds.delete",
+    "cloudasset.assets.exportResource",
   ]
   stage = "GA"
 }
@@ -186,4 +217,46 @@ resource "google_project_iam_member" "clumio_gcs_cai_feed_permission_iam_binding
   project = var.project_id
   role    = "projects/${var.project_id}/roles/${google_project_iam_custom_role.clumio_gcs_cai_feed_permission[0].role_id}"
   member  = "serviceAccount:${google_service_account.federated_sa.email}"
+}
+
+resource "google_project_iam_custom_role" "clumio_gcs_delta_topic_permission" {
+  count       = var.is_gcs_enabled ? 1 : 0
+  project     = var.project_id
+  role_id     = "GCSDeltaTopicPermission_${local.sanitized_clumio_token}"
+  title       = "ClumioGCSDeltaTopicPermissions"
+  description = "Allow exact customer delta topic IAM management for Clumio GCS delta ingestion"
+  permissions = [
+    "pubsub.topics.get",
+    "pubsub.topics.getIamPolicy",
+    "pubsub.topics.setIamPolicy",
+  ]
+  stage = "GA"
+}
+
+resource "google_pubsub_topic_iam_member" "clumio_gcs_delta_topic_permission_iam_binding" {
+  count   = var.is_gcs_enabled ? 1 : 0
+  project = var.project_id
+  topic   = google_pubsub_topic.customer_delta[0].name
+  role    = "projects/${var.project_id}/roles/${google_project_iam_custom_role.clumio_gcs_delta_topic_permission[0].role_id}"
+  member  = "serviceAccount:${google_service_account.federated_sa.email}"
+}
+
+resource "google_project_iam_custom_role" "clumio_gcs_delta_federated_sa_policy_permission" {
+  count       = var.is_gcs_enabled ? 1 : 0
+  project     = var.project_id
+  role_id     = "GCSDeltaFedSAPolicy_${local.sanitized_clumio_token}"
+  title       = "ClumioGCSDeltaFederatedSAPolicyPermissions"
+  description = "Allow exact IAM policy management on the customer federated service account for Clumio GCS delta ingestion"
+  permissions = [
+    "iam.serviceAccounts.getIamPolicy",
+    "iam.serviceAccounts.setIamPolicy",
+  ]
+  stage = "GA"
+}
+
+resource "google_service_account_iam_member" "clumio_gcs_delta_federated_sa_policy_permission_iam_binding" {
+  count              = var.is_gcs_enabled ? 1 : 0
+  service_account_id = google_service_account.federated_sa.name
+  role               = "projects/${var.project_id}/roles/${google_project_iam_custom_role.clumio_gcs_delta_federated_sa_policy_permission[0].role_id}"
+  member             = "serviceAccount:${google_service_account.federated_sa.email}"
 }

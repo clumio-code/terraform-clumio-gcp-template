@@ -1,3 +1,13 @@
+## 0.3.0-beta
+
+- Add GCS delta ingestion support via Cloud Asset Inventory feeds and a dedicated Pub/Sub topic for bucket change notifications.
+- Enable the Cloud Asset API and grant its service agent Pub/Sub publisher permissions.
+- Add custom IAM roles for delta topic management and federated service account policy management.
+- Add `storage.buckets.update` and `cloudasset.assets.exportResource` to existing GCS backup and CAI feed permissions.
+- Add `google-beta` and `random` provider requirements; bump minimum Clumio provider version to `>= 0.19.0`.
+- Add `deployment_type` and `regions` variables for the Clumio GCP connection resource.
+- Pass the customer delta topic ID to the Clumio post-process connection via the new `properties` attribute.
+
 ## 0.2.0-beta
 
 - Enable the customer-project Monitoring and Pub/Sub APIs required for GCS protection workflows.
