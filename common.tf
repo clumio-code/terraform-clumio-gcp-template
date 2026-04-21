@@ -124,7 +124,12 @@ resource "clumio_post_process_gcp_connection" "post_process" {
   wif_provider_id       = google_iam_workload_identity_pool_provider.aws.workload_identity_pool_provider_id
   config_version        = local.config_version
   protect_gcs_version   = local.gcs_version
-  properties = var.is_gcs_enabled ? {
-    invsrvgcp_customer_topic_id = google_pubsub_topic.customer_delta[0].id
-  } : null
+  properties = merge(
+    var.is_gcs_enabled ? {
+      invsrvgcp_customer_topic_id = google_pubsub_topic.customer_delta[0].id
+    } : {},
+    {
+      last_updated = timestamp()
+    }
+  )
 }
