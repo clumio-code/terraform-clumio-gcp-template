@@ -109,6 +109,7 @@ resource "clumio_post_process_gcp_connection" "post_process" {
     google_project_iam_member.storage_service_agent_pubsub_publisher,
     google_project_iam_member.storagetransfer_service_agent_pubsub_editor,
     google_project_service.cloudasset,
+    google_storage_bucket.clumio_inventory_bridge,
     google_pubsub_topic.customer_delta,
     google_cloud_asset_project_feed.customer_delta,
     # When adding or removing resources update this list

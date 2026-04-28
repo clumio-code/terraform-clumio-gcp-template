@@ -7,6 +7,7 @@
 - Add `google-beta` and `random` provider requirements; bump minimum Clumio provider version to `>= 0.19.0`.
 - Add `deployment_type` and `regions` variables for the Clumio GCP connection resource.
 - Pass the customer delta topic ID to the Clumio post-process connection via the new `properties` attribute.
+- Add optional Terraform-managed GCS inventory bridge buckets with configurable labels.
 
 ## 0.2.0-beta
 

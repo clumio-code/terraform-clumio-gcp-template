@@ -1,6 +1,6 @@
 locals {
   # Always update the gcs_version when updating this file
-  gcs_version = "1.2"
+  gcs_version = "1.3"
 }
 
 # Enable the Google Cloud Storage API
@@ -107,6 +107,28 @@ resource "google_project_service" "monitoring_api" {
   service = "monitoring.googleapis.com"
 
   disable_on_destroy = false
+}
+
+resource "google_storage_bucket" "clumio_inventory_bridge" {
+  for_each = var.is_gcs_enabled && var.gcs_inventory_bridge_bucket_mode == "create" ? toset(var.regions) : toset([])
+
+  project                  = var.project_id
+  name                     = "clumio-inventory-bridge-${each.key}-${var.project_id}"
+  location                 = each.key
+  storage_class            = "STANDARD"
+  public_access_prevention = "enforced"
+  labels                   = var.gcs_inventory_bridge_bucket_labels
+
+  lifecycle_rule {
+    action {
+      type = "Delete"
+    }
+    condition {
+      age = 30
+    }
+  }
+
+  depends_on = [google_project_service.storage_api]
 }
 
 resource "google_project_iam_custom_role" "clumio_gcs_inventory_permission" {
