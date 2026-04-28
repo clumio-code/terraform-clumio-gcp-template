@@ -38,6 +38,10 @@ module "clumio_gcp_connection" {
   clumio_control_plane_id   = clumio_gcp_connection.this.clumio_control_plane_id
   clumio_control_plane_role = clumio_gcp_connection.this.clumio_control_plane_role
   is_gcs_enabled            = var.is_gcs_enabled
+
+  regions                            = var.regions
+  gcs_inventory_bridge_bucket_mode   = var.gcs_inventory_bridge_bucket_mode
+  gcs_inventory_bridge_bucket_labels = var.gcs_inventory_bridge_bucket_labels
 }
 ```
 
@@ -98,6 +102,7 @@ No modules.
 | [google_service_account_iam_binding.allow_token_creator](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/service_account_iam_binding) | resource |
 | [google_service_account_iam_binding.allow_wi_user](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/service_account_iam_binding) | resource |
 | [google_service_account_iam_member.clumio_gcs_delta_federated_sa_policy_permission_iam_binding](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/service_account_iam_member) | resource |
+| [google_storage_bucket.clumio_inventory_bridge](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/storage_bucket) | resource |
 | [random_id.customer_delta_suffix](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/id) | resource |
 | [google_project.current](https://registry.terraform.io/providers/hashicorp/google/latest/docs/data-sources/project) | data source |
 | [google_storage_project_service_account.gcs](https://registry.terraform.io/providers/hashicorp/google/latest/docs/data-sources/storage_project_service_account) | data source |
@@ -113,8 +118,11 @@ No modules.
 | <a name="input_clumio_token"></a> [clumio\_token](#input\_clumio\_token) | The GCP integration ID token. | `string` | n/a | yes |
 | <a name="input_clumio_wif_pool_id"></a> [clumio\_wif\_pool\_id](#input\_clumio\_wif\_pool\_id) | Workload Identity Pool ID | `string` | `"clumio-aws-pool"` | no |
 | <a name="input_clumio_wif_provider_id"></a> [clumio\_wif\_provider\_id](#input\_clumio\_wif\_provider\_id) | Workload Identity Pool Provider ID | `string` | `"clumio-aws-provider"` | no |
+| <a name="input_gcs_inventory_bridge_bucket_labels"></a> [gcs\_inventory\_bridge\_bucket\_labels](#input\_gcs\_inventory\_bridge\_bucket\_labels) | Labels to apply to Clumio inventory bridge buckets. Use this for labels required by your organization policies. | `map(string)` | `{}` | no |
+| <a name="input_gcs_inventory_bridge_bucket_mode"></a> [gcs\_inventory\_bridge\_bucket\_mode](#input\_gcs\_inventory\_bridge\_bucket\_mode) | Controls whether Terraform creates Clumio inventory bridge buckets. Use skip when the buckets already exist and are managed outside this template. | `string` | `"create"` | no |
 | <a name="input_is_gcs_enabled"></a> [is\_gcs\_enabled](#input\_is\_gcs\_enabled) | Flag to indicate if Clumio Protect for GCS is enabled | `bool` | `false` | no |
 | <a name="input_project_id"></a> [project\_id](#input\_project\_id) | Client GCP project Id. | `string` | n/a | yes |
+| <a name="input_regions"></a> [regions](#input\_regions) | List of GCP regions in which to enable Clumio backup capabilities. | `list(string)` | `[]` | no |
 
 ## Outputs
 

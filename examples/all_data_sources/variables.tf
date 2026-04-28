@@ -40,6 +40,23 @@ variable "is_gcs_enabled" {
   default     = true
 }
 
+variable "gcs_inventory_bridge_bucket_mode" {
+  description = "Controls whether Terraform creates Clumio inventory bridge buckets. Use skip when the buckets already exist and are managed outside this template."
+  type        = string
+  default     = "create"
+
+  validation {
+    condition     = contains(["create", "skip"], var.gcs_inventory_bridge_bucket_mode)
+    error_message = "gcs_inventory_bridge_bucket_mode must be one of: create, skip."
+  }
+}
+
+variable "gcs_inventory_bridge_bucket_labels" {
+  description = "Labels to apply to Clumio inventory bridge buckets. Use this for labels required by your organization policies."
+  type        = map(string)
+  default     = {}
+}
+
 variable "description" {
   description = "Description for the Clumio integration"
   type        = string
