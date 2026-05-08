@@ -1,10 +1,10 @@
 variable "project_id" {
-  description = "Client GCP project Id"
+  description = "Client GCP project Id."
   type        = string
 }
 
 variable "clumio_control_plane_id" {
-  description = "Clumio control plane Account Id"
+  description = "Clumio control plane Account Id."
   type        = string
 }
 
@@ -14,12 +14,12 @@ variable "clumio_control_plane_role" {
 }
 
 variable "clumio_token" {
-  description = "The GCP integration ID token"
+  description = "The GCP integration ID token."
   type        = string
 }
 
 variable "clumio_federated_aws_service_account_id" {
-  description = "The name of the Clumio federated service account"
+  description = "The name of the Clumio federated service account."
   type        = string
   default     = "clumio-federated-aws-user"
 }
@@ -49,15 +49,10 @@ variable "regions" {
   default     = []
 }
 
-variable "gcs_inventory_bridge_bucket_mode" {
-  description = "Controls whether Terraform creates Clumio inventory bridge buckets. Use skip when the buckets already exist and are managed outside this template."
-  type        = string
-  default     = "create"
-
-  validation {
-    condition     = contains(["create", "skip"], var.gcs_inventory_bridge_bucket_mode)
-    error_message = "gcs_inventory_bridge_bucket_mode must be one of: create, skip."
-  }
+variable "create_clumio_inventory_bridge_bucket" {
+  description = "Indicates that Clumio inventory bridge buckets must be created by this template. Set to false when the buckets already exist and are managed outside this template."
+  type        = bool
+  default     = true
 }
 
 variable "gcs_inventory_bridge_bucket_labels" {

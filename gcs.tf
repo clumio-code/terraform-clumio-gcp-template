@@ -1,6 +1,6 @@
 locals {
   # Always update the gcs_version when updating this file
-  gcs_version = "1.3"
+  gcs_version = "1.4"
 }
 
 # Enable the Google Cloud Storage API
@@ -110,7 +110,7 @@ resource "google_project_service" "monitoring_api" {
 }
 
 resource "google_storage_bucket" "clumio_inventory_bridge" {
-  for_each = var.is_gcs_enabled && var.gcs_inventory_bridge_bucket_mode == "create" ? toset(var.regions) : toset([])
+  for_each = var.is_gcs_enabled && var.create_clumio_inventory_bridge_bucket ? toset(var.regions) : toset([])
 
   project                  = var.project_id
   name                     = "clumio-inventory-bridge-${each.key}-${var.project_id}"

@@ -23,7 +23,7 @@ module "clumio_gcp_connection" {
   clumio_control_plane_role = clumio_gcp_connection.this.clumio_control_plane_role
   is_gcs_enabled            = var.is_gcs_enabled
 
-  regions                            = var.regions
-  gcs_inventory_bridge_bucket_mode   = var.gcs_inventory_bridge_bucket_mode
-  gcs_inventory_bridge_bucket_labels = var.gcs_inventory_bridge_bucket_labels
+  regions                               = var.regions
+  create_clumio_inventory_bridge_bucket = var.create_clumio_inventory_bridge_bucket
+  gcs_inventory_bridge_bucket_labels    = var.gcs_inventory_bridge_bucket_labels
 }

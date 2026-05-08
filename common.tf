@@ -57,24 +57,20 @@ resource "google_iam_workload_identity_pool_provider" "aws" {
   attribute_condition = "assertion.arn.startsWith('${var.clumio_control_plane_role}')"
 }
 
-resource "google_service_account_iam_binding" "allow_wi_user" {
+resource "google_service_account_iam_member" "allow_wi_user" {
   # Allow the federated principal set to impersonate (workloadIdentityUser) the service account.
   service_account_id = google_service_account.federated_sa.name
   role               = "roles/iam.workloadIdentityUser"
 
-  members = [
-    "principalSet://iam.googleapis.com/projects/${data.google_project.current.number}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.pool.workload_identity_pool_id}/attribute.aws_acct/${var.clumio_control_plane_id}"
-  ]
+  member = "principalSet://iam.googleapis.com/projects/${data.google_project.current.number}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.pool.workload_identity_pool_id}/attribute.aws_acct/${var.clumio_control_plane_id}"
 }
 
-resource "google_service_account_iam_binding" "allow_token_creator" {
+resource "google_service_account_iam_member" "allow_token_creator" {
   # Grant ability to mint access tokens once impersonation is established.
   service_account_id = google_service_account.federated_sa.name
   role               = "roles/iam.serviceAccountTokenCreator"
 
-  members = [
-    "principalSet://iam.googleapis.com/projects/${data.google_project.current.number}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.pool.workload_identity_pool_id}/attribute.aws_acct/${var.clumio_control_plane_id}"
-  ]
+  member = "principalSet://iam.googleapis.com/projects/${data.google_project.current.number}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.pool.workload_identity_pool_id}/attribute.aws_acct/${var.clumio_control_plane_id}"
 }
 
 # Enable the IAM Service Account Credentials API required for WIF impersonation
@@ -88,8 +84,8 @@ resource "google_project_service" "iam_credentials_api" {
 
 resource "clumio_post_process_gcp_connection" "post_process" {
   depends_on = [
-    google_service_account_iam_binding.allow_token_creator,
-    google_service_account_iam_binding.allow_wi_user,
+    google_service_account_iam_member.allow_token_creator,
+    google_service_account_iam_member.allow_wi_user,
     google_project_service.iam_credentials_api,
     google_project_service.monitoring_api,
     google_project_service.storage_api,
