@@ -17,11 +17,10 @@ module "clumio_gcp_connection" {
   }
   source = "../../"
 
-  clumio_token              = clumio_gcp_connection.this.token
-  project_id                = data.google_project.current.project_id
-  clumio_control_plane_id   = clumio_gcp_connection.this.clumio_control_plane_id
-  clumio_control_plane_role = clumio_gcp_connection.this.clumio_control_plane_role
-  is_gcs_enabled            = var.is_gcs_enabled
+  clumio_token                 = clumio_gcp_connection.this.token
+  project_id                   = data.google_project.current.project_id
+  clumio_service_account_email = var.clumio_service_account_email
+  is_gcs_enabled               = var.is_gcs_enabled
 
   regions                               = var.regions
   create_clumio_inventory_bridge_bucket = var.create_clumio_inventory_bridge_bucket

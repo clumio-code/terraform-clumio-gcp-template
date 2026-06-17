@@ -3,38 +3,20 @@ variable "project_id" {
   type        = string
 }
 
-variable "clumio_control_plane_id" {
-  description = "Clumio control plane Account Id."
-  type        = string
-}
-
-variable "clumio_control_plane_role" {
-  description = "Clumio control plane Role name that will federate into GCP"
-  type        = string
-}
-
 variable "clumio_token" {
   description = "The GCP integration ID token."
   type        = string
 }
 
-variable "clumio_federated_aws_service_account_id" {
-  description = "The name of the Clumio federated service account."
+variable "clumio_service_account_email" {
+  description = "The email of the Clumio service account."
   type        = string
-  default     = "clumio-federated-aws-user"
 }
 
-# WIF IDs (use the ones you created)
-variable "clumio_wif_pool_id" {
-  description = "Workload Identity Pool ID"
+variable "customer_service_account_email" {
+  description = "The email of the Customer's service account. If not provided, a service account will be created by this template."
   type        = string
-  default     = "clumio-aws-pool"
-}
-
-variable "clumio_wif_provider_id" {
-  description = "Workload Identity Pool Provider ID"
-  type        = string
-  default     = "clumio-aws-provider"
+  default     = ""
 }
 
 variable "is_gcs_enabled" {
@@ -46,13 +28,11 @@ variable "is_gcs_enabled" {
 variable "regions" {
   description = "List of GCP regions in which to enable Clumio backup capabilities."
   type        = list(string)
-  default     = []
 }
 
 variable "create_clumio_inventory_bridge_bucket" {
-  description = "Indicates that Clumio inventory bridge buckets must be created by this template. Set to false when the buckets already exist and are managed outside this template."
+  description = "Set to false if the project is already onboarded for this region under a different Clumio account."
   type        = bool
-  default     = true
 }
 
 variable "gcs_inventory_bridge_bucket_labels" {

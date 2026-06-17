@@ -17,11 +17,6 @@ content: |-
   {{ .Header }}
   # Clumio GCP Terraform Module
 
-  > ⚠️ **Beta Release**
-  >
-  > This module is currently in **beta** and available only to select customers.
-  > Interfaces (inputs/outputs), behavior, and implementation details may change in future releases.
-
   Terraform module to install the Clumio required GCP resources in the customer GCP account.
 
   ## Usage
