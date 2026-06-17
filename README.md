@@ -33,11 +33,10 @@ module "clumio_gcp_connection" {
   }
   source = "../../"
 
-  clumio_token              = clumio_gcp_connection.this.token
-  project_id                = data.google_project.current.project_id
-  clumio_control_plane_id   = clumio_gcp_connection.this.clumio_control_plane_id
-  clumio_control_plane_role = clumio_gcp_connection.this.clumio_control_plane_role
-  is_gcs_enabled            = var.is_gcs_enabled
+  clumio_token                 = clumio_gcp_connection.this.token
+  project_id                   = data.google_project.current.project_id
+  clumio_service_account_email = var.clumio_service_account_email
+  is_gcs_enabled               = var.is_gcs_enabled
 
   regions                               = var.regions
   create_clumio_inventory_bridge_bucket = var.create_clumio_inventory_bridge_bucket
@@ -73,24 +72,23 @@ No modules.
 |------|------|
 | [clumio_post_process_gcp_connection.post_process](https://registry.terraform.io/providers/clumio-code/clumio/latest/docs/resources/post_process_gcp_connection) | resource |
 | [google-beta_google_project_service_identity.cloudasset](https://registry.terraform.io/providers/hashicorp/google-beta/latest/docs/resources/google_project_service_identity) | resource |
+| [google-beta_google_project_service_identity.storageinsights](https://registry.terraform.io/providers/hashicorp/google-beta/latest/docs/resources/google_project_service_identity) | resource |
 | [google_cloud_asset_project_feed.customer_delta](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/cloud_asset_project_feed) | resource |
-| [google_iam_workload_identity_pool.pool](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/iam_workload_identity_pool) | resource |
-| [google_iam_workload_identity_pool_provider.aws](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/iam_workload_identity_pool_provider) | resource |
 | [google_project_iam_custom_role.clumio_gcs_backup_permission](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_custom_role) | resource |
-| [google_project_iam_custom_role.clumio_gcs_cai_feed_permission](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_custom_role) | resource |
+| [google_project_iam_custom_role.clumio_gcs_bucket_iam_policy_permission](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_custom_role) | resource |
 | [google_project_iam_custom_role.clumio_gcs_delta_federated_sa_policy_permission](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_custom_role) | resource |
 | [google_project_iam_custom_role.clumio_gcs_delta_topic_permission](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_custom_role) | resource |
 | [google_project_iam_custom_role.clumio_gcs_inventory_permission](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_custom_role) | resource |
 | [google_project_iam_custom_role.clumio_gcs_restore_permission](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_custom_role) | resource |
 | [google_project_iam_member.cloudasset_service_agent_pubsub_publisher](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
 | [google_project_iam_member.clumio_gcs_backup_permission_iam_binding](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
-| [google_project_iam_member.clumio_gcs_cai_feed_permission_iam_binding](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
+| [google_project_iam_member.clumio_gcs_bucket_iam_policy_permission_iam_binding](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
 | [google_project_iam_member.clumio_gcs_inventory_permission_iam_binding](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
 | [google_project_iam_member.clumio_gcs_restore_permission_iam_binding](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
+| [google_project_iam_member.insights_collector](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
 | [google_project_iam_member.storage_service_agent_pubsub_publisher](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
 | [google_project_iam_member.storagetransfer_service_agent_pubsub_editor](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
 | [google_project_service.cloudasset](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_service) | resource |
-| [google_project_service.iam_credentials_api](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_service) | resource |
 | [google_project_service.monitoring_api](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_service) | resource |
 | [google_project_service.pubsub](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_service) | resource |
 | [google_project_service.storage_api](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_service) | resource |
@@ -98,10 +96,10 @@ No modules.
 | [google_project_service.storagetransfer](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_service) | resource |
 | [google_pubsub_topic.customer_delta](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_topic) | resource |
 | [google_pubsub_topic_iam_member.clumio_gcs_delta_topic_permission_iam_binding](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_topic_iam_member) | resource |
-| [google_service_account.federated_sa](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/service_account) | resource |
+| [google_service_account.customer_sa](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/service_account) | resource |
 | [google_service_account_iam_member.allow_token_creator](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/service_account_iam_member) | resource |
-| [google_service_account_iam_member.allow_wi_user](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/service_account_iam_member) | resource |
 | [google_service_account_iam_member.clumio_gcs_delta_federated_sa_policy_permission_iam_binding](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/service_account_iam_member) | resource |
+| [google_service_account_iam_member.clumio_sa_user](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/service_account_iam_member) | resource |
 | [google_storage_bucket.clumio_inventory_bridge](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/storage_bucket) | resource |
 | [random_id.customer_delta_suffix](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/id) | resource |
 | [google_project.current](https://registry.terraform.io/providers/hashicorp/google/latest/docs/data-sources/project) | data source |
@@ -112,13 +110,9 @@ No modules.
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_clumio_control_plane_id"></a> [clumio\_control\_plane\_id](#input\_clumio\_control\_plane\_id) | Clumio control plane Account Id. | `string` | n/a | yes |
-| <a name="input_clumio_control_plane_role"></a> [clumio\_control\_plane\_role](#input\_clumio\_control\_plane\_role) | Clumio control plane Role name that will federate into GCP | `string` | n/a | yes |
-| <a name="input_clumio_federated_aws_service_account_id"></a> [clumio\_federated\_aws\_service\_account\_id](#input\_clumio\_federated\_aws\_service\_account\_id) | The name of the Clumio federated service account. | `string` | `"clumio-federated-aws-user"` | no |
+| <a name="input_clumio_service_account_email"></a> [clumio\_service\_account\_email](#input\_clumio\_service\_account\_email) | The email of the Clumio service account. | `string` | n/a | yes |
 | <a name="input_clumio_token"></a> [clumio\_token](#input\_clumio\_token) | The GCP integration ID token. | `string` | n/a | yes |
-| <a name="input_clumio_wif_pool_id"></a> [clumio\_wif\_pool\_id](#input\_clumio\_wif\_pool\_id) | Workload Identity Pool ID | `string` | `"clumio-aws-pool"` | no |
-| <a name="input_clumio_wif_provider_id"></a> [clumio\_wif\_provider\_id](#input\_clumio\_wif\_provider\_id) | Workload Identity Pool Provider ID | `string` | `"clumio-aws-provider"` | no |
-| <a name="input_create_clumio_inventory_bridge_bucket"></a> [create\_clumio\_inventory\_bridge\_bucket](#input\_create\_clumio\_inventory\_bridge\_bucket) | Indicates that Clumio inventory bridge buckets must be created by this template. Set to false when the buckets already exist and are managed outside this template. | `bool` | `true` | no |
+| <a name="input_create_clumio_inventory_bridge_bucket"></a> [create\_clumio\_inventory\_bridge\_bucket](#input\_create\_clumio\_inventory\_bridge\_bucket) | Set to false if the project is already onboarded for this region under a different Clumio account. | `bool` | n/a | yes |
 | <a name="input_gcs_inventory_bridge_bucket_labels"></a> [gcs\_inventory\_bridge\_bucket\_labels](#input\_gcs\_inventory\_bridge\_bucket\_labels) | Labels to apply to Clumio inventory bridge buckets. Use this for labels required by your organization policies. | `map(string)` | `{}` | no |
 | <a name="input_is_gcs_enabled"></a> [is\_gcs\_enabled](#input\_is\_gcs\_enabled) | Flag to indicate if Clumio Protect for GCS is enabled | `bool` | `false` | no |
 | <a name="input_project_id"></a> [project\_id](#input\_project\_id) | Client GCP project Id. | `string` | n/a | yes |

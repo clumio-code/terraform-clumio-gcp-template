@@ -58,28 +58,18 @@ variable "description" {
   default     = "Onboarded via Terraform"
 }
 
+# The Clumio-side service account that is granted permission to impersonate the
+# customer service account created by this module. Obtain this value from the
+# Clumio portal (or the clumio_gcp_connection resource once provider support for
+# the impersonation model is released).
+variable "clumio_service_account_email" {
+  description = "The email of the Clumio service account."
+  type        = string
+}
+
 ###############################
-# Optional configuration 
+# Optional configuration
 ###############################
-
-variable "clumio_federated_aws_service_account_id" {
-  description = "The name of the Clumio federated service account"
-  type        = string
-  default     = "clumio-federated-aws-user"
-}
-
-# WIF IDs (use the ones you created)
-variable "clumio_wif_pool_id" {
-  description = "Workload Identity Pool ID"
-  type        = string
-  default     = "clumio-aws-pool"
-}
-
-variable "clumio_wif_provider_id" {
-  description = "Workload Identity Pool Provider ID"
-  type        = string
-  default     = "clumio-aws-provider"
-}
 
 variable "deployment_type" {
   description = "How the GCP connection template is deployed. Allowed values: \"direct_terraform\", \"infrastructure_manager\""

@@ -1,6 +1,6 @@
 locals {
   # Always update the gcs_version when updating this file
-  gcs_version = "1.4"
+  gcs_version = "1.6"
 }
 
 # Enable the Google Cloud Storage API
@@ -101,6 +101,24 @@ resource "google_project_service" "storageinsights" {
   disable_on_destroy = false
 }
 
+# Grant the Storage Insights service agent project-level insightsCollectorService so it can read
+# source buckets when generating inventory reports.
+resource "google_project_service_identity" "storageinsights" {
+  provider = google-beta
+  count    = var.is_gcs_enabled ? 1 : 0
+  project  = var.project_id
+  service  = "storageinsights.googleapis.com"
+
+  depends_on = [google_project_service.storageinsights]
+}
+
+resource "google_project_iam_member" "insights_collector" {
+  count   = var.is_gcs_enabled ? 1 : 0
+  project = var.project_id
+  role    = "roles/storage.insightsCollectorService"
+  member  = google_project_service_identity.storageinsights[0].member
+}
+
 resource "google_project_service" "monitoring_api" {
   count   = var.is_gcs_enabled ? 1 : 0
   project = var.project_id
@@ -150,7 +168,7 @@ resource "google_project_iam_member" "clumio_gcs_inventory_permission_iam_bindin
   count   = var.is_gcs_enabled ? 1 : 0
   project = var.project_id
   role    = "projects/${var.project_id}/roles/${google_project_iam_custom_role.clumio_gcs_inventory_permission[0].role_id}"
-  member  = "serviceAccount:${google_service_account.federated_sa.email}"
+  member  = "serviceAccount:${google_service_account.customer_sa.email}"
 }
 
 resource "google_project_iam_custom_role" "clumio_gcs_backup_permission" {
@@ -160,30 +178,29 @@ resource "google_project_iam_custom_role" "clumio_gcs_backup_permission" {
   title       = "ClumioGCSBackupPermissions"
   description = "Allows read only access to GCS objects and manage bucket configuration for Clumio backup"
   permissions = [
+    # Read source objects and bucket metadata for backup.
     "storage.objects.list",
     "storage.objects.get",
     "storage.buckets.list",
     "storage.buckets.get",
 
+    # Configure buckets for inventory bridging and continuous backup notifications.
     "storage.buckets.create",
     "storage.buckets.update",
     "storage.buckets.getObjectInsights",
-    "storage.buckets.getIamPolicy",
-    "storage.buckets.setIamPolicy",
 
+    # Manage the Storage Transfer Service inventory replication job.
     "storagetransfer.jobs.create",
     "storagetransfer.jobs.list",
-    "storagetransfer.jobs.get",
     "storagetransfer.jobs.update",
-    "storagetransfer.projects.getServiceAccount",
 
+    # Manage Storage Insights inventory report configuration.
     "storageinsights.reportConfigs.get",
     "storageinsights.reportConfigs.list",
     "storageinsights.reportConfigs.create",
-    "storageinsights.reportConfigs.update",
     "storageinsights.reportConfigs.delete",
 
-    "monitoring.metricDescriptors.list",
+    # Read bucket size metrics from Cloud Monitoring.
     "monitoring.timeSeries.list",
   ]
   stage = "GA"
@@ -193,7 +210,35 @@ resource "google_project_iam_member" "clumio_gcs_backup_permission_iam_binding" 
   count   = var.is_gcs_enabled ? 1 : 0
   project = var.project_id
   role    = "projects/${var.project_id}/roles/${google_project_iam_custom_role.clumio_gcs_backup_permission[0].role_id}"
-  member  = "serviceAccount:${google_service_account.federated_sa.email}"
+  member  = "serviceAccount:${google_service_account.customer_sa.email}"
+}
+
+# Read and set IAM policy on the Clumio inventory-bridge bucket only (condition-scoped below), so the
+# service account can grant the Storage Transfer and Storage Insights agents access to it.
+resource "google_project_iam_custom_role" "clumio_gcs_bucket_iam_policy_permission" {
+  count       = var.is_gcs_enabled ? 1 : 0
+  project     = var.project_id
+  role_id     = "GCSBucketIamPolicy_${local.sanitized_clumio_token}"
+  title       = "ClumioGCSBucketIamPolicyPermissions"
+  description = "Allow Clumio to read and set bucket IAM policy on the Clumio inventory-bridge bucket only"
+  permissions = [
+    "storage.buckets.getIamPolicy",
+    "storage.buckets.setIamPolicy",
+  ]
+  stage = "GA"
+}
+
+resource "google_project_iam_member" "clumio_gcs_bucket_iam_policy_permission_iam_binding" {
+  count   = var.is_gcs_enabled ? 1 : 0
+  project = var.project_id
+  role    = "projects/${var.project_id}/roles/${google_project_iam_custom_role.clumio_gcs_bucket_iam_policy_permission[0].role_id}"
+  member  = "serviceAccount:${google_service_account.customer_sa.email}"
+
+  condition {
+    title       = "clumio_inventory_bridge_buckets_only"
+    description = "Restrict bucket IAM policy management to Clumio inventory-bridge buckets"
+    expression  = "resource.type == \"storage.googleapis.com/Bucket\" && resource.name.startsWith(\"projects/_/buckets/clumio-inventory-bridge-\")"
+  }
 }
 
 resource "google_project_iam_custom_role" "clumio_gcs_restore_permission" {
@@ -203,9 +248,9 @@ resource "google_project_iam_custom_role" "clumio_gcs_restore_permission" {
   title       = "ClumioGCSRestorePermissions"
   description = "Allow write access to GCS objects for Clumio restore"
   permissions = [
+    # Write and overwrite objects in the restore target bucket.
     "storage.objects.create",
     "storage.objects.delete",
-    "storage.objects.update",
   ]
   stage = "GA"
 }
@@ -214,31 +259,7 @@ resource "google_project_iam_member" "clumio_gcs_restore_permission_iam_binding"
   count   = var.is_gcs_enabled ? 1 : 0
   project = var.project_id
   role    = "projects/${var.project_id}/roles/${google_project_iam_custom_role.clumio_gcs_restore_permission[0].role_id}"
-  member  = "serviceAccount:${google_service_account.federated_sa.email}"
-}
-
-resource "google_project_iam_custom_role" "clumio_gcs_cai_feed_permission" {
-  count       = var.is_gcs_enabled ? 1 : 0
-  project     = var.project_id
-  role_id     = "GCSCAIFeedPermission_${local.sanitized_clumio_token}"
-  title       = "ClumioGCSCAIFeedPermissions"
-  description = "Allow Cloud Asset Inventory feed management for GCS change ingestion"
-  permissions = [
-    "cloudasset.feeds.get",
-    "cloudasset.feeds.list",
-    "cloudasset.feeds.create",
-    "cloudasset.feeds.update",
-    "cloudasset.feeds.delete",
-    "cloudasset.assets.exportResource",
-  ]
-  stage = "GA"
-}
-
-resource "google_project_iam_member" "clumio_gcs_cai_feed_permission_iam_binding" {
-  count   = var.is_gcs_enabled ? 1 : 0
-  project = var.project_id
-  role    = "projects/${var.project_id}/roles/${google_project_iam_custom_role.clumio_gcs_cai_feed_permission[0].role_id}"
-  member  = "serviceAccount:${google_service_account.federated_sa.email}"
+  member  = "serviceAccount:${google_service_account.customer_sa.email}"
 }
 
 resource "google_project_iam_custom_role" "clumio_gcs_delta_topic_permission" {
@@ -260,7 +281,7 @@ resource "google_pubsub_topic_iam_member" "clumio_gcs_delta_topic_permission_iam
   project = var.project_id
   topic   = google_pubsub_topic.customer_delta[0].name
   role    = "projects/${var.project_id}/roles/${google_project_iam_custom_role.clumio_gcs_delta_topic_permission[0].role_id}"
-  member  = "serviceAccount:${google_service_account.federated_sa.email}"
+  member  = "serviceAccount:${google_service_account.customer_sa.email}"
 }
 
 resource "google_project_iam_custom_role" "clumio_gcs_delta_federated_sa_policy_permission" {
@@ -278,7 +299,7 @@ resource "google_project_iam_custom_role" "clumio_gcs_delta_federated_sa_policy_
 
 resource "google_service_account_iam_member" "clumio_gcs_delta_federated_sa_policy_permission_iam_binding" {
   count              = var.is_gcs_enabled ? 1 : 0
-  service_account_id = google_service_account.federated_sa.name
+  service_account_id = google_service_account.customer_sa.name
   role               = "projects/${var.project_id}/roles/${google_project_iam_custom_role.clumio_gcs_delta_federated_sa_policy_permission[0].role_id}"
-  member             = "serviceAccount:${google_service_account.federated_sa.email}"
+  member             = "serviceAccount:${google_service_account.customer_sa.email}"
 }

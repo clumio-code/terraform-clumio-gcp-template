@@ -1,3 +1,12 @@
+## 0.4.0-beta
+
+- Migrated GCP onboarding to the service-account impersonation model: the customer project now creates a customer-side service account that the Clumio service account impersonates, and the Workload Identity Federation pool/provider are managed by Clumio rather than by this module.
+- Replaced the `clumio_control_plane_id`, `clumio_control_plane_role`, `clumio_federated_aws_service_account_id`, `clumio_wif_pool_id`, and `clumio_wif_provider_id` inputs with `clumio_service_account_email`.
+- Scoped GCS bucket IAM-policy management to Clumio inventory-bridge buckets and dropped unused backup, restore, Storage Transfer, monitoring, and Storage Insights permissions.
+- Removed the unused GCS Cloud Asset Inventory feed permission role.
+- Granted the Storage Insights service agent project-level access for inventory report generation.
+- `create_clumio_inventory_bridge_bucket` is now a required input.
+
 ## 0.3.0-beta
 
 - Added GCS bucket change tracking support for protection workflows.
