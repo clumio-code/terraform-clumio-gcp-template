@@ -1,3 +1,10 @@
+## 0.4.0
+
+- Switched GCP onboarding to the service-account impersonation model. Replaced the Workload Identity Federation inputs with `clumio_service_account_email`, and added the optional `customer_service_account_email` to use an existing service account.
+- Tightened the GCS IAM roles to least privilege and removed the unused Cloud Asset Inventory feed role.
+- Made `create_clumio_inventory_bridge_bucket` and `regions` required inputs.
+- Required the Clumio provider `>= 0.21.0`.
+
 ## 0.3.0-beta
 
 - Added GCS bucket change tracking support for protection workflows.
