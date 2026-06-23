@@ -93,6 +93,6 @@ resource "clumio_post_process_gcp_connection" "post_process" {
   protect_gcs_version   = local.gcs_version
   regions               = var.regions
   properties = var.is_gcs_enabled ? {
-    invsrvgcp_customer_topic_id = google_pubsub_topic.customer_delta[0].id,
+    customer_delta_topic_id = google_pubsub_topic.customer_delta[0].id,
   } : {}
 }
