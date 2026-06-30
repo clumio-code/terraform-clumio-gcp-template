@@ -17,12 +17,12 @@ module "clumio_gcp_connection" {
   }
   source = "../../"
 
-  clumio_token                 = clumio_gcp_connection.this.token
-  project_id                   = data.google_project.current.project_id
-  clumio_service_account_email = var.clumio_service_account_email
-  is_gcs_enabled               = var.is_gcs_enabled
+  clumio_token                   = clumio_gcp_connection.this.token
+  project_id                     = data.google_project.current.project_id
+  regions                        = var.regions
+  clumio_service_account_email   = clumio_gcp_connection.this.clumio_service_account
+  is_gcs_enabled                 = var.is_gcs_enabled
+  customer_service_account_email = var.customer_service_account_email
 
-  regions                               = var.regions
   create_clumio_inventory_bridge_bucket = var.create_clumio_inventory_bridge_bucket
-  gcs_inventory_bridge_bucket_labels    = var.gcs_inventory_bridge_bucket_labels
 }
