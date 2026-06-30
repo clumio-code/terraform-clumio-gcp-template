@@ -1,3 +1,7 @@
+## 0.4.1
+
+- Minor documentation updates to the `examples/all_data_sources` example.
+
 ## 0.4.0
 
 - Switched GCP onboarding to the service-account impersonation model. Replaced the Workload Identity Federation inputs with `clumio_service_account_email`, and added the optional `customer_service_account_email` to use an existing service account.
