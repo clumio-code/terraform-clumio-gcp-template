@@ -1,5 +1,7 @@
-## 0.4.1
+## 0.5.0
 
+- Expanded GCS backup permissions for Storage Transfer Service job management.
+- Bumped GCS template version to `1.7`.
 - Minor documentation updates to the `examples/all_data_sources` example.
 
 ## 0.4.0
