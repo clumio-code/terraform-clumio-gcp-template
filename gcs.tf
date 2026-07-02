@@ -1,6 +1,6 @@
 locals {
   # Always update the gcs_version when updating this file
-  gcs_version = "1.6"
+  gcs_version = "1.7"
 }
 
 # Enable the Google Cloud Storage API
@@ -193,6 +193,8 @@ resource "google_project_iam_custom_role" "clumio_gcs_backup_permission" {
     "storagetransfer.jobs.create",
     "storagetransfer.jobs.list",
     "storagetransfer.jobs.update",
+    "storagetransfer.jobs.get",
+    "storagetransfer.projects.getServiceAccount",
 
     # Manage Storage Insights inventory report configuration.
     "storageinsights.reportConfigs.get",
