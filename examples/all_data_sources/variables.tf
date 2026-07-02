@@ -3,7 +3,7 @@
 ###############################
 # Your Clumio API token (from the Clumio portal under Settings → API Tokens)
 variable "clumio_api_token" {
-  description = "The API token used to authenticate with Clumio"
+  description = "The API token used to authenticate with Clumio."
   type        = string
   sensitive   = true
 }
@@ -12,11 +12,16 @@ variable "clumio_api_token" {
 #   US East (N. Virginia): https://us-east-1.api.clumio.com
 #   EU (Frankfurt): https://eu-central-1.api.clumio.com
 #   AU (Sydney): https://ap-southeast-2.au.api.clumio.com
-#   CA (Central): https://ca-central-1.ca.api.clumio.com
 
 variable "clumio_api_base_url" {
-  description = "The base API URL for the Clumio service"
+  description = "The base API URL for the Clumio service."
   type        = string
+}
+
+variable "description" {
+  description = "Description for the Clumio integration"
+  type        = string
+  default     = "Onboarded via Terraform"
 }
 
 ###############################
@@ -29,50 +34,13 @@ variable "project_id" {
 }
 
 variable "regions" {
-  description = "List of GCP regions in which to enable Clumio backup capabilities. Clumio currently supports backup of GCP resources in us-central1, and us-west1"
+  description = "List of GCP regions in which to enable Clumio backup capabilities. Clumio currently supports backup of GCP resources in us-central1, and us-west1."
   type        = list(string)
-  default     = ["us-central1", "us-west1"]
+  default     = ["us-west1", "us-central1"]
 }
-
-variable "is_gcs_enabled" {
-  description = "Flag to indicate if Clumio Protect for GCS is enabled"
-  type        = bool
-  default     = true
-}
-
-variable "create_clumio_inventory_bridge_bucket" {
-  description = "Indicates that Clumio inventory bridge buckets must be created by this template. Set to false when the buckets already exist and are managed outside this template."
-  type        = bool
-  default     = true
-}
-
-variable "gcs_inventory_bridge_bucket_labels" {
-  description = "Labels to apply to Clumio inventory bridge buckets. Use this for labels required by your organization policies."
-  type        = map(string)
-  default     = {}
-}
-
-variable "description" {
-  description = "Description for the Clumio integration"
-  type        = string
-  default     = "Onboarded via Terraform"
-}
-
-# The Clumio-side service account that is granted permission to impersonate the
-# customer service account created by this module. Obtain this value from the
-# Clumio portal (or the clumio_gcp_connection resource once provider support for
-# the impersonation model is released).
-variable "clumio_service_account_email" {
-  description = "The email of the Clumio service account."
-  type        = string
-}
-
-###############################
-# Optional configuration
-###############################
 
 variable "deployment_type" {
-  description = "How the GCP connection template is deployed. Allowed values: \"direct_terraform\", \"infrastructure_manager\""
+  description = "How the GCP connection template is deployed. Allowed values: \"direct_terraform\", \"infrastructure_manager\"."
   type        = string
   default     = "direct_terraform"
 
@@ -80,4 +48,21 @@ variable "deployment_type" {
     condition     = contains(["direct_terraform", "infrastructure_manager"], var.deployment_type)
     error_message = "deployment_type must be one of: \"direct_terraform\", \"infrastructure_manager\"."
   }
+}
+
+variable "is_gcs_enabled" {
+  description = "Flag to indicate if Clumio Protect for GCS is enabled"
+  type        = bool
+  default     = true
+}
+variable "customer_service_account_email" {
+  description = "The email of the Customer's service account."
+  type        = string
+  default     = ""
+}
+
+variable "create_clumio_inventory_bridge_bucket" {
+  description = "Set to false if the project is already onboarded for this region under a different Clumio account."
+  type        = bool
+  default     = true
 }
