@@ -23,16 +23,23 @@ data "google_service_account" "customer_provided_sa" {
 locals {
   sanitized_clumio_token = replace(var.clumio_token, "-", "")
   # Always update the config_version when updating this file
-  config_version = "2.0"
+  config_version = "2.1"
   # The template will create a SA if customer has not provided one
   create_service_account = length(var.customer_service_account_email) == 0
   # Points to customer provided SA if provided, else points to the SA created by this template
   service_account_details = local.create_service_account ? google_service_account.clumio_created_sa[0] : data.google_service_account.customer_provided_sa[0]
+  regions_by_name = {
+    for r in var.region_configuration : r.region => r
+  }
+  regions_to_create_clumio_inventory_bridge_bucket = {
+    for region, cfg in local.regions_by_name : region => cfg
+    if var.is_gcs_enabled && cfg.create_clumio_inventory_bridge_bucket
+  }
 }
 
 resource "google_service_account" "clumio_created_sa" {
   count        = local.create_service_account ? 1 : 0
-  account_id   = var.project_id
+  account_id   = "clumio-protect-sa-${substr(local.sanitized_clumio_token, 0, 12)}"
   display_name = "Service account in customer's account that will be impersonated by Clumio"
 }
 
@@ -91,7 +98,15 @@ resource "clumio_post_process_gcp_connection" "post_process" {
   service_account_email = local.service_account_details.email
   config_version        = local.config_version
   protect_gcs_version   = local.gcs_version
-  regions               = var.regions
+  regions               = [for r in var.region_configuration : r.region]
+  region_configuration = [for r in var.region_configuration : {
+    region = r.region
+    inventory_bridge_bucket_name = (
+      var.is_gcs_enabled && r.create_clumio_inventory_bridge_bucket
+      ? google_storage_bucket.clumio_inventory_bridge[r.region].name
+      : "clumio-inventory-bridge-${r.region}-${var.project_id}"
+    )
+  }]
   properties = var.is_gcs_enabled ? {
     customer_delta_topic_id = google_pubsub_topic.customer_delta[0].id,
   } : {}

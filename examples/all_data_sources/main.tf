@@ -7,7 +7,7 @@ data "google_project" "current" {
 resource "clumio_gcp_connection" "this" {
   project_id      = data.google_project.current.project_id
   description     = var.description
-  regions         = var.regions
+  regions         = [for r in var.region_configuration : r.region]
   deployment_type = var.deployment_type
 }
 # 2) Install GCP resources required by Clumio in your project
@@ -19,10 +19,8 @@ module "clumio_gcp_connection" {
 
   clumio_token                   = clumio_gcp_connection.this.token
   project_id                     = data.google_project.current.project_id
-  regions                        = var.regions
+  region_configuration           = var.region_configuration
   clumio_service_account_email   = clumio_gcp_connection.this.clumio_service_account
   is_gcs_enabled                 = var.is_gcs_enabled
   customer_service_account_email = var.customer_service_account_email
-
-  create_clumio_inventory_bridge_bucket = var.create_clumio_inventory_bridge_bucket
 }
