@@ -128,7 +128,7 @@ resource "google_project_service" "monitoring_api" {
 }
 
 resource "google_storage_bucket" "clumio_inventory_bridge" {
-  for_each = var.is_gcs_enabled && var.create_clumio_inventory_bridge_bucket ? toset(var.regions) : toset([])
+  for_each = local.regions_to_create_clumio_inventory_bridge_bucket
 
   project                  = var.project_id
   name                     = "clumio-inventory-bridge-${each.key}-${var.project_id}"

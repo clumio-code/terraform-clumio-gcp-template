@@ -1,3 +1,8 @@
+## 0.6.0
+
+- Replaced the `regions` and `create_clumio_inventory_bridge_bucket` inputs with a single `region_configuration` input, a list of `{ region, create_clumio_inventory_bridge_bucket }` objects, allowing per-region control of inventory bridge bucket creation. This is a breaking change: existing configurations must move their `regions` and `create_clumio_inventory_bridge_bucket` values into `region_configuration`.
+- Required the Clumio provider `>= 0.22.0`.
+
 ## 0.5.0
 
 - Expanded GCS backup permissions for Storage Transfer Service job management.

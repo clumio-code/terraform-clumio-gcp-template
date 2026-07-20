@@ -33,10 +33,16 @@ variable "project_id" {
   type        = string
 }
 
-variable "regions" {
-  description = "List of GCP regions in which to enable Clumio backup capabilities. Clumio currently supports backup of GCP resources in us-central1, and us-west1."
-  type        = list(string)
-  default     = ["us-west1", "us-central1"]
+variable "region_configuration" {
+  description = "List of GCP regions to enable for Clumio backup, and whether to create the inventory bridge bucket for each. Clumio currently supports us-central1 and us-west1."
+  type = list(object({
+    region                                = string
+    create_clumio_inventory_bridge_bucket = bool
+  }))
+  default = [
+    { region = "us-west1", create_clumio_inventory_bridge_bucket = true },
+    { region = "us-central1", create_clumio_inventory_bridge_bucket = true },
+  ]
 }
 
 variable "deployment_type" {
@@ -59,10 +65,4 @@ variable "customer_service_account_email" {
   description = "The email of the Customer's service account."
   type        = string
   default     = ""
-}
-
-variable "create_clumio_inventory_bridge_bucket" {
-  description = "Set to false if the project is already onboarded for this region under a different Clumio account."
-  type        = bool
-  default     = true
 }

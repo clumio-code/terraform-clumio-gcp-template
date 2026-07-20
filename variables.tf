@@ -25,14 +25,39 @@ variable "is_gcs_enabled" {
   default     = false
 }
 
-variable "regions" {
-  description = "List of GCP regions in which to enable Clumio backup capabilities."
-  type        = list(string)
-}
+variable "region_configuration" {
+  description = <<EOT
 
-variable "create_clumio_inventory_bridge_bucket" {
-  description = "Set to false if the project is already onboarded for this region under a different Clumio account."
-  type        = bool
+  Per-region configuration for Clumio backup capabilities in GCP.
+
+  Each entry defines a GCP region and whether Clumio should create the inventory bridge bucket for that region.
+  Set create_clumio_inventory_bridge_bucket to false if the project is already onboarded for the region under a different Clumio account.
+
+EOT
+
+  type = list(object({
+    region                                = string
+    create_clumio_inventory_bridge_bucket = bool
+  }))
+
+  validation {
+    condition     = length(var.region_configuration) > 0
+    error_message = "At least one region must be specified."
+  }
+
+  validation {
+    condition = alltrue([
+      for r in var.region_configuration : trimspace(r.region) != ""
+    ])
+    error_message = "Each region must have a non-empty region value."
+  }
+
+  validation {
+    condition = length(var.region_configuration) == length(distinct([
+      for r in var.region_configuration : trimspace(r.region)
+    ]))
+    error_message = "Each region must be unique."
+  }
 }
 
 variable "gcs_inventory_bridge_bucket_labels" {
