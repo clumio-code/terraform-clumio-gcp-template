@@ -1,3 +1,8 @@
+## 0.7.0
+
+- Removed the `ClumioGCSDeltaFederatedSAPolicyPermissions` custom role and its binding. The Clumio service account no longer holds `iam.serviceAccounts.getIamPolicy` / `iam.serviceAccounts.setIamPolicy` on itself, so it can no longer modify its own IAM policy. Clumio GCS delta ingestion reaches the service account through the already-granted `roles/iam.serviceAccountTokenCreator` on `clumio_service_account_email` instead.
+- Bumped config template version to `2.2` and GCS template version to `1.8`.
+
 ## 0.6.0
 
 - Replaced the `regions` and `create_clumio_inventory_bridge_bucket` inputs with a single `region_configuration` input, a list of `{ region, create_clumio_inventory_bridge_bucket }` objects, allowing per-region control of inventory bridge bucket creation. This is a breaking change: existing configurations must move their `regions` and `create_clumio_inventory_bridge_bucket` values into `region_configuration`.

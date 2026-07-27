@@ -23,7 +23,7 @@ data "google_service_account" "customer_provided_sa" {
 locals {
   sanitized_clumio_token = replace(var.clumio_token, "-", "")
   # Always update the config_version when updating this file
-  config_version = "2.1"
+  config_version = "2.2"
   # The template will create a SA if customer has not provided one
   create_service_account = length(var.customer_service_account_email) == 0
   # Points to customer provided SA if provided, else points to the SA created by this template
@@ -68,14 +68,12 @@ resource "clumio_post_process_gcp_connection" "post_process" {
     google_project_service.storage_api,
     google_project_iam_custom_role.clumio_gcs_backup_permission,
     google_project_iam_custom_role.clumio_gcs_bucket_iam_policy_permission,
-    google_project_iam_custom_role.clumio_gcs_delta_federated_sa_policy_permission,
     google_project_iam_custom_role.clumio_gcs_delta_topic_permission,
     google_project_iam_custom_role.clumio_gcs_inventory_permission,
     google_project_iam_custom_role.clumio_gcs_restore_permission,
     google_project_iam_member.clumio_gcs_backup_permission_iam_binding,
     google_project_iam_member.clumio_gcs_bucket_iam_policy_permission_iam_binding,
     google_pubsub_topic_iam_member.clumio_gcs_delta_topic_permission_iam_binding,
-    google_service_account_iam_member.clumio_gcs_delta_federated_sa_policy_permission_iam_binding,
     google_project_iam_member.clumio_gcs_inventory_permission_iam_binding,
     google_project_iam_member.clumio_gcs_restore_permission_iam_binding,
     google_project_iam_member.cloudasset_service_agent_pubsub_publisher,

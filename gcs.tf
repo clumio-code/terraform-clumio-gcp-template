@@ -1,6 +1,6 @@
 locals {
   # Always update the gcs_version when updating this file
-  gcs_version = "1.7"
+  gcs_version = "1.8"
 }
 
 # Enable the Google Cloud Storage API
@@ -284,24 +284,4 @@ resource "google_pubsub_topic_iam_member" "clumio_gcs_delta_topic_permission_iam
   topic   = google_pubsub_topic.customer_delta[0].name
   role    = "projects/${var.project_id}/roles/${google_project_iam_custom_role.clumio_gcs_delta_topic_permission[0].role_id}"
   member  = "serviceAccount:${local.service_account_details.email}"
-}
-
-resource "google_project_iam_custom_role" "clumio_gcs_delta_federated_sa_policy_permission" {
-  count       = var.is_gcs_enabled ? 1 : 0
-  project     = var.project_id
-  role_id     = "GCSDeltaFedSAPolicy_${local.sanitized_clumio_token}"
-  title       = "ClumioGCSDeltaFederatedSAPolicyPermissions"
-  description = "Allow exact IAM policy management on the customer federated service account for Clumio GCS delta ingestion"
-  permissions = [
-    "iam.serviceAccounts.getIamPolicy",
-    "iam.serviceAccounts.setIamPolicy",
-  ]
-  stage = "GA"
-}
-
-resource "google_service_account_iam_member" "clumio_gcs_delta_federated_sa_policy_permission_iam_binding" {
-  count              = var.is_gcs_enabled ? 1 : 0
-  service_account_id = local.service_account_details.name
-  role               = "projects/${var.project_id}/roles/${google_project_iam_custom_role.clumio_gcs_delta_federated_sa_policy_permission[0].role_id}"
-  member             = "serviceAccount:${local.service_account_details.email}"
 }
