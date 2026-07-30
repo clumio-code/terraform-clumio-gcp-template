@@ -30,14 +30,16 @@ variable "region_configuration" {
 
   Per-region configuration for Clumio backup capabilities in GCP.
 
-  Each entry defines a GCP region and whether Clumio should create the inventory bridge bucket for that region.
-  Set create_clumio_inventory_bridge_bucket to false if the project is already onboarded for the region under a different Clumio account.
+  Each entry defines a GCP region and, optionally, an existing inventory bridge bucket for that region.
+  Leave using_custom_inventory_bridge_bucket empty (default) to have Clumio create the inventory bridge
+  bucket. Set it to the name of an existing bucket to have Clumio use that bucket instead; in that case no
+  bucket is created for the region.
 
 EOT
 
   type = list(object({
-    region                                = string
-    create_clumio_inventory_bridge_bucket = bool
+    region                               = string
+    using_custom_inventory_bridge_bucket = optional(string, "")
   }))
 
   validation {
@@ -57,6 +59,15 @@ EOT
       for r in var.region_configuration : trimspace(r.region)
     ]))
     error_message = "Each region must be unique."
+  }
+
+  validation {
+    condition = alltrue([
+      for r in var.region_configuration :
+      can(regex("^[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$", r.using_custom_inventory_bridge_bucket))
+      if trimspace(r.using_custom_inventory_bridge_bucket) != ""
+    ])
+    error_message = "using_custom_inventory_bridge_bucket must be a valid GCS bucket name (3-63 chars, lowercase letters, numbers, '-', '_', '.', starting and ending with a letter or number)."
   }
 }
 
