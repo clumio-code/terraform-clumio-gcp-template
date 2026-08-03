@@ -34,14 +34,14 @@ variable "project_id" {
 }
 
 variable "region_configuration" {
-  description = "List of GCP regions to enable for Clumio backup, and whether to create the inventory bridge bucket for each. Clumio currently supports us-central1 and us-west1."
+  description = "List of GCP regions to enable for Clumio backup, and optionally an existing inventory bridge bucket to use for each. Leave using_custom_inventory_bridge_bucket empty to have Clumio create the bucket. Clumio currently supports us-central1 and us-west1."
   type = list(object({
-    region                                = string
-    create_clumio_inventory_bridge_bucket = bool
+    region                               = string
+    using_custom_inventory_bridge_bucket = optional(string, "")
   }))
   default = [
-    { region = "us-west1", create_clumio_inventory_bridge_bucket = true },
-    { region = "us-central1", create_clumio_inventory_bridge_bucket = true },
+    { region = "us-west1" },
+    { region = "us-central1" },
   ]
 }
 

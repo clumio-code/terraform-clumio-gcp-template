@@ -18,7 +18,7 @@ data "google_project" "current" {
 resource "clumio_gcp_connection" "this" {
   project_id      = data.google_project.current.project_id
   description     = var.description
-  regions         = var.regions
+  regions         = [for r in var.region_configuration : r.region]
   deployment_type = var.deployment_type
 }
 # 2) Install GCP resources required by Clumio in your project
@@ -28,14 +28,12 @@ module "clumio_gcp_connection" {
   }
   source = "../../"
 
-  clumio_token                 = clumio_gcp_connection.this.token
-  project_id                   = data.google_project.current.project_id
-  clumio_service_account_email = var.clumio_service_account_email
-  is_gcs_enabled               = var.is_gcs_enabled
-
-  regions                               = var.regions
-  create_clumio_inventory_bridge_bucket = var.create_clumio_inventory_bridge_bucket
-  gcs_inventory_bridge_bucket_labels    = var.gcs_inventory_bridge_bucket_labels
+  clumio_token                   = clumio_gcp_connection.this.token
+  project_id                     = data.google_project.current.project_id
+  region_configuration           = var.region_configuration
+  clumio_service_account_email   = clumio_gcp_connection.this.clumio_service_account
+  is_gcs_enabled                 = var.is_gcs_enabled
+  customer_service_account_email = var.customer_service_account_email
 }
 ```
 
@@ -43,7 +41,7 @@ module "clumio_gcp_connection" {
 
 | Name | Version |
 |------|---------|
-| <a name="requirement_clumio"></a> [clumio](#requirement\_clumio) | >= 0.21.0 |
+| <a name="requirement_clumio"></a> [clumio](#requirement\_clumio) | >= 0.22.0 |
 | <a name="requirement_google"></a> [google](#requirement\_google) | >= 5.0 |
 | <a name="requirement_google-beta"></a> [google-beta](#requirement\_google-beta) | >= 5.0 |
 | <a name="requirement_random"></a> [random](#requirement\_random) | ~> 3.0 |
@@ -52,7 +50,7 @@ module "clumio_gcp_connection" {
 
 | Name | Version |
 |------|---------|
-| <a name="provider_clumio"></a> [clumio](#provider\_clumio) | >= 0.21.0 |
+| <a name="provider_clumio"></a> [clumio](#provider\_clumio) | >= 0.22.0 |
 | <a name="provider_google"></a> [google](#provider\_google) | >= 5.0 |
 | <a name="provider_google-beta"></a> [google-beta](#provider\_google-beta) | >= 5.0 |
 | <a name="provider_random"></a> [random](#provider\_random) | ~> 3.0 |
@@ -69,10 +67,10 @@ No modules.
 | [google-beta_google_project_service_identity.cloudasset](https://registry.terraform.io/providers/hashicorp/google-beta/latest/docs/resources/google_project_service_identity) | resource |
 | [google-beta_google_project_service_identity.storageinsights](https://registry.terraform.io/providers/hashicorp/google-beta/latest/docs/resources/google_project_service_identity) | resource |
 | [google_cloud_asset_project_feed.customer_delta](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/cloud_asset_project_feed) | resource |
+| [google_project_iam_custom_role.clumio_delta_federated_sa_policy_permission](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_custom_role) | resource |
+| [google_project_iam_custom_role.clumio_delta_topic_permission](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_custom_role) | resource |
 | [google_project_iam_custom_role.clumio_gcs_backup_permission](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_custom_role) | resource |
 | [google_project_iam_custom_role.clumio_gcs_bucket_iam_policy_permission](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_custom_role) | resource |
-| [google_project_iam_custom_role.clumio_gcs_delta_federated_sa_policy_permission](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_custom_role) | resource |
-| [google_project_iam_custom_role.clumio_gcs_delta_topic_permission](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_custom_role) | resource |
 | [google_project_iam_custom_role.clumio_gcs_inventory_permission](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_custom_role) | resource |
 | [google_project_iam_custom_role.clumio_gcs_restore_permission](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_custom_role) | resource |
 | [google_project_iam_member.cloudasset_service_agent_pubsub_publisher](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
@@ -90,10 +88,10 @@ No modules.
 | [google_project_service.storageinsights](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_service) | resource |
 | [google_project_service.storagetransfer](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_service) | resource |
 | [google_pubsub_topic.customer_delta](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_topic) | resource |
-| [google_pubsub_topic_iam_member.clumio_gcs_delta_topic_permission_iam_binding](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_topic_iam_member) | resource |
+| [google_pubsub_topic_iam_member.clumio_delta_topic_permission_iam_binding](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_topic_iam_member) | resource |
 | [google_service_account.clumio_created_sa](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/service_account) | resource |
 | [google_service_account_iam_member.allow_token_creator](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/service_account_iam_member) | resource |
-| [google_service_account_iam_member.clumio_gcs_delta_federated_sa_policy_permission_iam_binding](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/service_account_iam_member) | resource |
+| [google_service_account_iam_member.clumio_delta_federated_sa_policy_permission_iam_binding](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/service_account_iam_member) | resource |
 | [google_service_account_iam_member.clumio_sa_user](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/service_account_iam_member) | resource |
 | [google_storage_bucket.clumio_inventory_bridge](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/storage_bucket) | resource |
 | [random_id.customer_delta_suffix](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/id) | resource |
@@ -108,12 +106,11 @@ No modules.
 |------|-------------|------|---------|:--------:|
 | <a name="input_clumio_service_account_email"></a> [clumio\_service\_account\_email](#input\_clumio\_service\_account\_email) | The email of the Clumio service account. | `string` | n/a | yes |
 | <a name="input_clumio_token"></a> [clumio\_token](#input\_clumio\_token) | The GCP integration ID token. | `string` | n/a | yes |
-| <a name="input_create_clumio_inventory_bridge_bucket"></a> [create\_clumio\_inventory\_bridge\_bucket](#input\_create\_clumio\_inventory\_bridge\_bucket) | Set to false if the project is already onboarded for this region under a different Clumio account. | `bool` | n/a | yes |
 | <a name="input_customer_service_account_email"></a> [customer\_service\_account\_email](#input\_customer\_service\_account\_email) | The email of the Customer's service account. If not provided, a service account will be created by this template. | `string` | `""` | no |
 | <a name="input_gcs_inventory_bridge_bucket_labels"></a> [gcs\_inventory\_bridge\_bucket\_labels](#input\_gcs\_inventory\_bridge\_bucket\_labels) | Labels to apply to Clumio inventory bridge buckets. Use this for labels required by your organization policies. | `map(string)` | `{}` | no |
 | <a name="input_is_gcs_enabled"></a> [is\_gcs\_enabled](#input\_is\_gcs\_enabled) | Flag to indicate if Clumio Protect for GCS is enabled | `bool` | `false` | no |
 | <a name="input_project_id"></a> [project\_id](#input\_project\_id) | Client GCP project Id. | `string` | n/a | yes |
-| <a name="input_regions"></a> [regions](#input\_regions) | List of GCP regions in which to enable Clumio backup capabilities. | `list(string)` | n/a | yes |
+| <a name="input_region_configuration"></a> [region\_configuration](#input\_region\_configuration) | Per-region configuration for Clumio backup capabilities in GCP.<br/><br/>  Each entry defines a GCP region and, optionally, an existing inventory bridge bucket for that region.<br/>  Leave using\_custom\_inventory\_bridge\_bucket empty (default) to have Clumio create the inventory bridge<br/>  bucket. Set it to the name of an existing bucket to have Clumio use that bucket instead; in that case no<br/>  bucket is created for the region. | <pre>list(object({<br/>    region                               = string<br/>    using_custom_inventory_bridge_bucket = optional(string, "")<br/>  }))</pre> | n/a | yes |
 
 ## Outputs
 

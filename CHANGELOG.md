@@ -1,3 +1,11 @@
+## 0.7.0
+
+- Replaced the `create_clumio_inventory_bridge_bucket` field of `region_configuration` with `using_custom_inventory_bridge_bucket`, an optional bucket name. Leave it empty to have Clumio create the inventory bridge bucket for the region, or set it to an existing bucket to have Clumio use that bucket instead.
+- Changed the Clumio-created inventory bridge bucket name suffix from the project ID to a hash of the Clumio token.
+- Renamed the GCS delta resources and custom IAM roles to `clumio_delta_*`, and the Pub/Sub topic and Cloud Asset Inventory feed to `clumio-delta-*`. Applying this release replaces those resources.
+- Scoped the bucket IAM policy role to customer-provided inventory bridge buckets in addition to Clumio-created ones.
+- Bumped the config template version to `2.2` and the GCS template version to `1.8`.
+
 ## 0.6.0
 
 - Replaced the `regions` and `create_clumio_inventory_bridge_bucket` inputs with a single `region_configuration` input, a list of `{ region, create_clumio_inventory_bridge_bucket }` objects, allowing per-region control of inventory bridge bucket creation. This is a breaking change: existing configurations must move their `regions` and `create_clumio_inventory_bridge_bucket` values into `region_configuration`.

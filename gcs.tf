@@ -1,6 +1,6 @@
 locals {
   # Always update the gcs_version when updating this file
-  gcs_version = "1.7"
+  gcs_version = "1.8"
 }
 
 # Enable the Google Cloud Storage API
@@ -131,7 +131,7 @@ resource "google_storage_bucket" "clumio_inventory_bridge" {
   for_each = local.regions_to_create_clumio_inventory_bridge_bucket
 
   project                  = var.project_id
-  name                     = "clumio-inventory-bridge-${each.key}-${var.project_id}"
+  name                     = "clumio-inventory-bridge-${each.key}-${local.clumio_inventory_bridge_token_hash}"
   location                 = each.key
   storage_class            = "STANDARD"
   public_access_prevention = "enforced"
@@ -238,8 +238,8 @@ resource "google_project_iam_member" "clumio_gcs_bucket_iam_policy_permission_ia
 
   condition {
     title       = "clumio_inventory_bridge_buckets_only"
-    description = "Restrict bucket IAM policy management to Clumio inventory-bridge buckets"
-    expression  = "resource.type == \"storage.googleapis.com/Bucket\" && resource.name.startsWith(\"projects/_/buckets/clumio-inventory-bridge-\")"
+    description = "Restrict bucket IAM policy management to Clumio-created and customer-provided inventory-bridge buckets"
+    expression  = "resource.type == \"storage.googleapis.com/Bucket\" && (${local.inventory_bridge_bucket_iam_resource_expression})"
   }
 }
 
@@ -264,12 +264,12 @@ resource "google_project_iam_member" "clumio_gcs_restore_permission_iam_binding"
   member  = "serviceAccount:${local.service_account_details.email}"
 }
 
-resource "google_project_iam_custom_role" "clumio_gcs_delta_topic_permission" {
+resource "google_project_iam_custom_role" "clumio_delta_topic_permission" {
   count       = var.is_gcs_enabled ? 1 : 0
   project     = var.project_id
-  role_id     = "GCSDeltaTopicPermission_${local.sanitized_clumio_token}"
-  title       = "ClumioGCSDeltaTopicPermissions"
-  description = "Allow exact customer delta topic IAM management for Clumio GCS delta ingestion"
+  role_id     = "DeltaTopicPermission_${local.sanitized_clumio_token}"
+  title       = "ClumioDeltaTopicPermissions"
+  description = "Allow exact customer delta topic IAM management for Clumio delta ingestion"
   permissions = [
     "pubsub.topics.get",
     "pubsub.topics.getIamPolicy",
@@ -278,20 +278,20 @@ resource "google_project_iam_custom_role" "clumio_gcs_delta_topic_permission" {
   stage = "GA"
 }
 
-resource "google_pubsub_topic_iam_member" "clumio_gcs_delta_topic_permission_iam_binding" {
+resource "google_pubsub_topic_iam_member" "clumio_delta_topic_permission_iam_binding" {
   count   = var.is_gcs_enabled ? 1 : 0
   project = var.project_id
   topic   = google_pubsub_topic.customer_delta[0].name
-  role    = "projects/${var.project_id}/roles/${google_project_iam_custom_role.clumio_gcs_delta_topic_permission[0].role_id}"
+  role    = "projects/${var.project_id}/roles/${google_project_iam_custom_role.clumio_delta_topic_permission[0].role_id}"
   member  = "serviceAccount:${local.service_account_details.email}"
 }
 
-resource "google_project_iam_custom_role" "clumio_gcs_delta_federated_sa_policy_permission" {
+resource "google_project_iam_custom_role" "clumio_delta_federated_sa_policy_permission" {
   count       = var.is_gcs_enabled ? 1 : 0
   project     = var.project_id
-  role_id     = "GCSDeltaFedSAPolicy_${local.sanitized_clumio_token}"
-  title       = "ClumioGCSDeltaFederatedSAPolicyPermissions"
-  description = "Allow exact IAM policy management on the customer federated service account for Clumio GCS delta ingestion"
+  role_id     = "DeltaFedSAPolicy_${local.sanitized_clumio_token}"
+  title       = "ClumioDeltaFederatedSAPolicyPermissions"
+  description = "Allow exact IAM policy management on the customer service account used for Clumio delta ingestion"
   permissions = [
     "iam.serviceAccounts.getIamPolicy",
     "iam.serviceAccounts.setIamPolicy",
@@ -299,9 +299,9 @@ resource "google_project_iam_custom_role" "clumio_gcs_delta_federated_sa_policy_
   stage = "GA"
 }
 
-resource "google_service_account_iam_member" "clumio_gcs_delta_federated_sa_policy_permission_iam_binding" {
+resource "google_service_account_iam_member" "clumio_delta_federated_sa_policy_permission_iam_binding" {
   count              = var.is_gcs_enabled ? 1 : 0
   service_account_id = local.service_account_details.name
-  role               = "projects/${var.project_id}/roles/${google_project_iam_custom_role.clumio_gcs_delta_federated_sa_policy_permission[0].role_id}"
+  role               = "projects/${var.project_id}/roles/${google_project_iam_custom_role.clumio_delta_federated_sa_policy_permission[0].role_id}"
   member             = "serviceAccount:${local.service_account_details.email}"
 }

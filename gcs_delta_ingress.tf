@@ -8,7 +8,7 @@ resource "google_pubsub_topic" "customer_delta" {
   count = var.is_gcs_enabled ? 1 : 0
 
   project = var.project_id
-  name    = "clumio-gcs-bucket-delta-${random_id.customer_delta_suffix[0].hex}"
+  name    = "clumio-delta-${random_id.customer_delta_suffix[0].hex}"
 
   depends_on = [google_project_service.pubsub]
 }
@@ -17,7 +17,7 @@ resource "google_cloud_asset_project_feed" "customer_delta" {
   count = var.is_gcs_enabled ? 1 : 0
 
   project      = var.project_id
-  feed_id      = "clumio-gcs-bucket-delta-${random_id.customer_delta_suffix[0].hex}"
+  feed_id      = "clumio-delta-${random_id.customer_delta_suffix[0].hex}"
   asset_types  = ["storage.googleapis.com/Bucket"]
   content_type = "RESOURCE"
 
