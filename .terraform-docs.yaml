@@ -27,6 +27,26 @@ content: |-
   {{ include "examples/all_data_sources/main.tf" }}
   ```
 
+  ## Delegated IAM management
+
+  By default this module manages everything Clumio needs, including the customer service account,
+  the impersonation grants, and the GCS custom IAM roles and their bindings. If your organization
+  provisions some of that IAM out-of-band (for example through a central platform), you can turn the
+  relevant parts off with two optional inputs (both default to `true`, so the default behavior is
+  unchanged):
+
+  - `manage_gcs_iam = false` — the module does not create the Clumio GCS custom roles or their
+    bindings to the customer service account. Provision equivalent roles/bindings externally.
+  - `manage_service_account_impersonation = false` — the module does not grant
+    `roles/iam.serviceAccountTokenCreator` / `roles/iam.serviceAccountUser` to the Clumio service
+    account on the customer service account.
+
+  When either flag is `false`, pass an existing service account via `customer_service_account_email`
+  so the module can wire the remaining resources and the Clumio post-process handshake. The module
+  still enables the required Google APIs, materializes the service agents, and creates the
+  inventory-bridge bucket, delta topic and Cloud Asset feed. See
+  `examples/external_iam_management` for a complete configuration.
+
   {{ .Requirements }}
 
   {{ .Providers }}

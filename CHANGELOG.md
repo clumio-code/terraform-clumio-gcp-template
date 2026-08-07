@@ -1,3 +1,11 @@
+## 0.8.0
+
+- Added two optional inputs to delegate IAM management to external tooling, both defaulting to `true` so existing configurations are unaffected:
+  - `manage_gcs_iam` — when `false`, the module no longer creates the Clumio GCS custom IAM roles or their bindings to the customer service account.
+  - `manage_service_account_impersonation` — when `false`, the module no longer grants `roles/iam.serviceAccountTokenCreator` or `roles/iam.serviceAccountUser` to the Clumio service account on the customer service account.
+- When either flag is `false`, provide an existing `customer_service_account_email` so the module can still wire the kept resources and the Clumio post-process handshake. The custom-role ids are now derived from shared locals so bindings and roles stay consistent whether or not the module manages them.
+- Added an `examples/external_iam_management` example and plan-only `terraform test` coverage for the new flags.
+
 ## 0.7.0
 
 - Replaced the `create_clumio_inventory_bridge_bucket` field of `region_configuration` with `using_custom_inventory_bridge_bucket`, an optional bucket name. Leave it empty to have Clumio create the inventory bridge bucket for the region, or set it to an existing bucket to have Clumio use that bucket instead.

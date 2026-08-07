@@ -37,6 +37,26 @@ module "clumio_gcp_connection" {
 }
 ```
 
+## Delegated IAM management
+
+By default this module manages everything Clumio needs, including the customer service account,
+the impersonation grants, and the GCS custom IAM roles and their bindings. If your organization
+provisions some of that IAM out-of-band (for example through a central platform), you can turn the
+relevant parts off with two optional inputs (both default to `true`, so the default behavior is
+unchanged):
+
+- `manage_gcs_iam = false` — the module does not create the Clumio GCS custom roles or their
+  bindings to the customer service account. Provision equivalent roles/bindings externally.
+- `manage_service_account_impersonation = false` — the module does not grant
+  `roles/iam.serviceAccountTokenCreator` / `roles/iam.serviceAccountUser` to the Clumio service
+  account on the customer service account.
+
+When either flag is `false`, pass an existing service account via `customer_service_account_email`
+so the module can wire the remaining resources and the Clumio post-process handshake. The module
+still enables the required Google APIs, materializes the service agents, and creates the
+inventory-bridge bucket, delta topic and Cloud Asset feed. See
+`examples/external_iam_management` for a complete configuration.
+
 ## Requirements
 
 | Name | Version |
@@ -109,6 +129,8 @@ No modules.
 | <a name="input_customer_service_account_email"></a> [customer\_service\_account\_email](#input\_customer\_service\_account\_email) | The email of the Customer's service account. If not provided, a service account will be created by this template. | `string` | `""` | no |
 | <a name="input_gcs_inventory_bridge_bucket_labels"></a> [gcs\_inventory\_bridge\_bucket\_labels](#input\_gcs\_inventory\_bridge\_bucket\_labels) | Labels to apply to Clumio inventory bridge buckets. Use this for labels required by your organization policies. | `map(string)` | `{}` | no |
 | <a name="input_is_gcs_enabled"></a> [is\_gcs\_enabled](#input\_is\_gcs\_enabled) | Flag to indicate if Clumio Protect for GCS is enabled | `bool` | `false` | no |
+| <a name="input_manage_gcs_iam"></a> [manage\_gcs\_iam](#input\_manage\_gcs\_iam) | Whether this module manages the Clumio GCS custom IAM roles and their bindings to the customer service account.<br/><br/>  Defaults to true, preserving the module's original behavior. Set to false when the custom roles<br/>  and role bindings are provisioned outside this module (for example by your own platform tooling),<br/>  in which case the module creates neither the `google_project_iam_custom_role` resources nor the<br/>  corresponding IAM bindings. This has no effect unless `is_gcs_enabled` is true. | `bool` | `true` | no |
+| <a name="input_manage_service_account_impersonation"></a> [manage\_service\_account\_impersonation](#input\_manage\_service\_account\_impersonation) | Whether this module grants the Clumio service account impersonation of the customer service account, i.e. the `roles/iam.serviceAccountTokenCreator` and `roles/iam.serviceAccountUser` bindings on the customer service account.<br/><br/>  Defaults to true, preserving the module's original behavior. Set to false when these impersonation<br/>  grants are provisioned outside this module (for example by your own platform tooling). | `bool` | `true` | no |
 | <a name="input_project_id"></a> [project\_id](#input\_project\_id) | Client GCP project Id. | `string` | n/a | yes |
 | <a name="input_region_configuration"></a> [region\_configuration](#input\_region\_configuration) | Per-region configuration for Clumio backup capabilities in GCP.<br/><br/>  Each entry defines a GCP region and, optionally, an existing inventory bridge bucket for that region.<br/>  Leave using\_custom\_inventory\_bridge\_bucket empty (default) to have Clumio create the inventory bridge<br/>  bucket. Set it to the name of an existing bucket to have Clumio use that bucket instead; in that case no<br/>  bucket is created for the region. | <pre>list(object({<br/>    region                               = string<br/>    using_custom_inventory_bridge_bucket = optional(string, "")<br/>  }))</pre> | n/a | yes |
 

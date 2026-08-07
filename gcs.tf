@@ -150,9 +150,9 @@ resource "google_storage_bucket" "clumio_inventory_bridge" {
 }
 
 resource "google_project_iam_custom_role" "clumio_gcs_inventory_permission" {
-  count       = var.is_gcs_enabled ? 1 : 0
+  count       = local.manage_gcs_iam ? 1 : 0
   project     = var.project_id
-  role_id     = "GCSInvPermission_${local.sanitized_clumio_token}"
+  role_id     = local.gcs_custom_role_ids.inventory
   title       = "ClumioGCSInventoryPermissions"
   description = "Allow read only access to list and inspect GCS buckets for Clumio inventory"
   permissions = [
@@ -165,16 +165,16 @@ resource "google_project_iam_custom_role" "clumio_gcs_inventory_permission" {
 }
 
 resource "google_project_iam_member" "clumio_gcs_inventory_permission_iam_binding" {
-  count   = var.is_gcs_enabled ? 1 : 0
+  count   = local.manage_gcs_iam ? 1 : 0
   project = var.project_id
-  role    = "projects/${var.project_id}/roles/${google_project_iam_custom_role.clumio_gcs_inventory_permission[0].role_id}"
+  role    = local.gcs_custom_role_names.inventory
   member  = "serviceAccount:${local.service_account_details.email}"
 }
 
 resource "google_project_iam_custom_role" "clumio_gcs_backup_permission" {
-  count       = var.is_gcs_enabled ? 1 : 0
+  count       = local.manage_gcs_iam ? 1 : 0
   project     = var.project_id
-  role_id     = "GCSBackupPermissions_${local.sanitized_clumio_token}"
+  role_id     = local.gcs_custom_role_ids.backup
   title       = "ClumioGCSBackupPermissions"
   description = "Allows read only access to GCS objects and manage bucket configuration for Clumio backup"
   permissions = [
@@ -209,18 +209,18 @@ resource "google_project_iam_custom_role" "clumio_gcs_backup_permission" {
 }
 
 resource "google_project_iam_member" "clumio_gcs_backup_permission_iam_binding" {
-  count   = var.is_gcs_enabled ? 1 : 0
+  count   = local.manage_gcs_iam ? 1 : 0
   project = var.project_id
-  role    = "projects/${var.project_id}/roles/${google_project_iam_custom_role.clumio_gcs_backup_permission[0].role_id}"
+  role    = local.gcs_custom_role_names.backup
   member  = "serviceAccount:${local.service_account_details.email}"
 }
 
 # Read and set IAM policy on the Clumio inventory-bridge bucket only (condition-scoped below), so the
 # service account can grant the Storage Transfer and Storage Insights agents access to it.
 resource "google_project_iam_custom_role" "clumio_gcs_bucket_iam_policy_permission" {
-  count       = var.is_gcs_enabled ? 1 : 0
+  count       = local.manage_gcs_iam ? 1 : 0
   project     = var.project_id
-  role_id     = "GCSBucketIamPolicy_${local.sanitized_clumio_token}"
+  role_id     = local.gcs_custom_role_ids.bucket_iam
   title       = "ClumioGCSBucketIamPolicyPermissions"
   description = "Allow Clumio to read and set bucket IAM policy on the Clumio inventory-bridge bucket only"
   permissions = [
@@ -231,9 +231,9 @@ resource "google_project_iam_custom_role" "clumio_gcs_bucket_iam_policy_permissi
 }
 
 resource "google_project_iam_member" "clumio_gcs_bucket_iam_policy_permission_iam_binding" {
-  count   = var.is_gcs_enabled ? 1 : 0
+  count   = local.manage_gcs_iam ? 1 : 0
   project = var.project_id
-  role    = "projects/${var.project_id}/roles/${google_project_iam_custom_role.clumio_gcs_bucket_iam_policy_permission[0].role_id}"
+  role    = local.gcs_custom_role_names.bucket_iam
   member  = "serviceAccount:${local.service_account_details.email}"
 
   condition {
@@ -244,9 +244,9 @@ resource "google_project_iam_member" "clumio_gcs_bucket_iam_policy_permission_ia
 }
 
 resource "google_project_iam_custom_role" "clumio_gcs_restore_permission" {
-  count       = var.is_gcs_enabled ? 1 : 0
+  count       = local.manage_gcs_iam ? 1 : 0
   project     = var.project_id
-  role_id     = "GCSRestorePermissions_${local.sanitized_clumio_token}"
+  role_id     = local.gcs_custom_role_ids.restore
   title       = "ClumioGCSRestorePermissions"
   description = "Allow write access to GCS objects for Clumio restore"
   permissions = [
@@ -258,16 +258,16 @@ resource "google_project_iam_custom_role" "clumio_gcs_restore_permission" {
 }
 
 resource "google_project_iam_member" "clumio_gcs_restore_permission_iam_binding" {
-  count   = var.is_gcs_enabled ? 1 : 0
+  count   = local.manage_gcs_iam ? 1 : 0
   project = var.project_id
-  role    = "projects/${var.project_id}/roles/${google_project_iam_custom_role.clumio_gcs_restore_permission[0].role_id}"
+  role    = local.gcs_custom_role_names.restore
   member  = "serviceAccount:${local.service_account_details.email}"
 }
 
 resource "google_project_iam_custom_role" "clumio_delta_topic_permission" {
-  count       = var.is_gcs_enabled ? 1 : 0
+  count       = local.manage_gcs_iam ? 1 : 0
   project     = var.project_id
-  role_id     = "DeltaTopicPermission_${local.sanitized_clumio_token}"
+  role_id     = local.gcs_custom_role_ids.delta_topic
   title       = "ClumioDeltaTopicPermissions"
   description = "Allow exact customer delta topic IAM management for Clumio delta ingestion"
   permissions = [
@@ -279,17 +279,17 @@ resource "google_project_iam_custom_role" "clumio_delta_topic_permission" {
 }
 
 resource "google_pubsub_topic_iam_member" "clumio_delta_topic_permission_iam_binding" {
-  count   = var.is_gcs_enabled ? 1 : 0
+  count   = local.manage_gcs_iam ? 1 : 0
   project = var.project_id
   topic   = google_pubsub_topic.customer_delta[0].name
-  role    = "projects/${var.project_id}/roles/${google_project_iam_custom_role.clumio_delta_topic_permission[0].role_id}"
+  role    = local.gcs_custom_role_names.delta_topic
   member  = "serviceAccount:${local.service_account_details.email}"
 }
 
 resource "google_project_iam_custom_role" "clumio_delta_federated_sa_policy_permission" {
-  count       = var.is_gcs_enabled ? 1 : 0
+  count       = local.manage_gcs_iam ? 1 : 0
   project     = var.project_id
-  role_id     = "DeltaFedSAPolicy_${local.sanitized_clumio_token}"
+  role_id     = local.gcs_custom_role_ids.delta_federation
   title       = "ClumioDeltaFederatedSAPolicyPermissions"
   description = "Allow exact IAM policy management on the customer service account used for Clumio delta ingestion"
   permissions = [
@@ -300,8 +300,8 @@ resource "google_project_iam_custom_role" "clumio_delta_federated_sa_policy_perm
 }
 
 resource "google_service_account_iam_member" "clumio_delta_federated_sa_policy_permission_iam_binding" {
-  count              = var.is_gcs_enabled ? 1 : 0
+  count              = local.manage_gcs_iam ? 1 : 0
   service_account_id = local.service_account_details.name
-  role               = "projects/${var.project_id}/roles/${google_project_iam_custom_role.clumio_delta_federated_sa_policy_permission[0].role_id}"
+  role               = local.gcs_custom_role_names.delta_federation
   member             = "serviceAccount:${local.service_account_details.email}"
 }

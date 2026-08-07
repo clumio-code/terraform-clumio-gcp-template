@@ -76,3 +76,36 @@ variable "gcs_inventory_bridge_bucket_labels" {
   type        = map(string)
   default     = {}
 }
+
+variable "manage_gcs_iam" {
+  description = <<EOT
+
+  Whether this module manages the Clumio GCS custom IAM roles and their bindings to the customer
+  service account.
+
+  Defaults to true, preserving the module's original behavior. Set to false when the custom roles
+  and role bindings are provisioned outside this module (for example by your own platform tooling),
+  in which case the module creates neither the `google_project_iam_custom_role` resources nor the
+  corresponding IAM bindings. This has no effect unless `is_gcs_enabled` is true.
+
+EOT
+
+  type    = bool
+  default = true
+}
+
+variable "manage_service_account_impersonation" {
+  description = <<EOT
+
+  Whether this module grants the Clumio service account impersonation of the customer service
+  account, i.e. the `roles/iam.serviceAccountTokenCreator` and `roles/iam.serviceAccountUser`
+  bindings on the customer service account.
+
+  Defaults to true, preserving the module's original behavior. Set to false when these impersonation
+  grants are provisioned outside this module (for example by your own platform tooling).
+
+EOT
+
+  type    = bool
+  default = true
+}
