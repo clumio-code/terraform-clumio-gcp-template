@@ -1,3 +1,12 @@
+## 0.8.0
+
+- Added optional customer-managed encryption key (CMEK) support for Clumio-created inventory bridge buckets via the new `inventory_bridge_kms_key_name` field of `region_configuration`. The template grants the required service agents access to the key.
+- Reduced service agent permissions: Cloud Asset now publishes only to the Clumio delta topic, and Storage Transfer uses its service agent role instead of `roles/pubsub.editor`.
+- Tightened the Cloud Monitoring permissions of the Clumio inventory and backup custom roles.
+- Enforced uniform bucket-level access and disabled soft delete on Clumio-created inventory bridge buckets.
+- Removed the self-referential IAM policy custom role and binding from the Clumio delta service account.
+- Bumped the config template version to `2.4` and the GCS template version to `1.12`.
+
 ## 0.7.0
 
 - Replaced the `create_clumio_inventory_bridge_bucket` field of `region_configuration` with `using_custom_inventory_bridge_bucket`, an optional bucket name. Leave it empty to have Clumio create the inventory bridge bucket for the region, or set it to an existing bucket to have Clumio use that bucket instead.

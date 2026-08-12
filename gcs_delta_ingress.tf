@@ -29,7 +29,7 @@ resource "google_cloud_asset_project_feed" "customer_delta" {
 
   depends_on = [
     google_project_service.cloudasset,
-    google_project_iam_member.cloudasset_service_agent_pubsub_publisher,
+    google_pubsub_topic_iam_member.cloudasset_service_agent_pubsub_publisher,
     google_pubsub_topic.customer_delta,
   ]
 }
