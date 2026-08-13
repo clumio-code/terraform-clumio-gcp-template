@@ -28,7 +28,7 @@ locals {
   # keeps the bucket name within GCS's 63-char limit across all regions.
   clumio_inventory_bridge_token_hash = substr(sha256(local.sanitized_clumio_token), 0, 12)
   # Always update the config_version when updating this file
-  config_version = "2.2"
+  config_version = "2.4"
   # The template will create a SA if customer has not provided one
   create_service_account = length(var.customer_service_account_email) == 0
   # Points to customer provided SA if provided, else points to the SA created by this template
@@ -41,6 +41,18 @@ locals {
     for region, cfg in local.regions_by_name : region => cfg
     if var.is_gcs_enabled && trimspace(cfg.using_custom_inventory_bridge_bucket) == ""
   }
+
+  # Distinct customer-managed encryption keys requested across regions. Used in gcs.tf to grant the
+  # service agents cryptoKeyEncrypterDecrypter on each key. Deduplicated so a key shared by multiple
+  # regions gets a single IAM binding per agent.
+  # Built from regions_to_create_clumio_inventory_bridge_bucket (not the raw region list) so grants
+  # exist only for keys attached to a bucket this template actually creates. A region that brings its
+  # own bucket manages its bucket's CMEK and service-agent key access itself (enforced by a validation
+  # in variables.tf that rejects setting both fields together).
+  inventory_bridge_kms_keys = toset([
+    for region, cfg in local.regions_to_create_clumio_inventory_bridge_bucket : trimspace(cfg.inventory_bridge_kms_key_name)
+    if trimspace(cfg.inventory_bridge_kms_key_name) != ""
+  ])
 
   # Customer-provided inventory bridge bucket names (used to scope IAM policy management in gcs.tf).
   custom_inventory_bridge_bucket_names = [
@@ -87,21 +99,25 @@ resource "clumio_post_process_gcp_connection" "post_process" {
     google_project_service.storage_api,
     google_project_iam_custom_role.clumio_gcs_backup_permission,
     google_project_iam_custom_role.clumio_gcs_bucket_iam_policy_permission,
-    google_project_iam_custom_role.clumio_delta_federated_sa_policy_permission,
     google_project_iam_custom_role.clumio_delta_topic_permission,
     google_project_iam_custom_role.clumio_gcs_inventory_permission,
     google_project_iam_custom_role.clumio_gcs_restore_permission,
     google_project_iam_member.clumio_gcs_backup_permission_iam_binding,
     google_project_iam_member.clumio_gcs_bucket_iam_policy_permission_iam_binding,
     google_pubsub_topic_iam_member.clumio_delta_topic_permission_iam_binding,
-    google_service_account_iam_member.clumio_delta_federated_sa_policy_permission_iam_binding,
     google_project_iam_member.clumio_gcs_inventory_permission_iam_binding,
     google_project_iam_member.clumio_gcs_restore_permission_iam_binding,
-    google_project_iam_member.cloudasset_service_agent_pubsub_publisher,
+    google_pubsub_topic_iam_member.cloudasset_service_agent_pubsub_publisher,
     google_project_iam_member.storage_service_agent_pubsub_publisher,
-    google_project_iam_member.storagetransfer_service_agent_pubsub_editor,
+    google_project_iam_member.storagetransfer_service_agent,
     google_project_service_identity.storageinsights,
     google_project_iam_member.insights_collector,
+    # CMEK key grants must land before the callback so the first inventory-report write / STS
+    # replication doesn't race ahead of the agents holding cryptoKeyEncrypterDecrypter (no-op
+    # when no CMEK key is configured).
+    google_kms_crypto_key_iam_member.inventory_bridge_gcs_agent_cmek,
+    google_kms_crypto_key_iam_member.inventory_bridge_insights_agent_cmek,
+    google_kms_crypto_key_iam_member.inventory_bridge_transfer_agent_cmek,
     google_project_service.cloudasset,
     google_storage_bucket.clumio_inventory_bridge,
     google_pubsub_topic.customer_delta,
