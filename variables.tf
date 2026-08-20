@@ -40,6 +40,14 @@ EOT
   type = list(object({
     region                               = string
     using_custom_inventory_bridge_bucket = optional(string, "")
+    # Optional customer-managed encryption key (CMEK) for the region's inventory-bridge bucket.
+    # Leave empty (default) to use Google-managed encryption. When set, the bucket is created with
+    # this key as its default encryption key, and the Cloud Storage, Storage Insights, and Storage
+    # Transfer service agents are granted cryptoKeyEncrypterDecrypter on it (see gcs.tf). The key's
+    # location must be compatible with the region, hence this is per-region rather than a single
+    # global key. Required for customers subject to the constraints/gcp.restrictNonCmekServices
+    # org policy, which otherwise rejects the bucket create.
+    inventory_bridge_kms_key_name = optional(string, "")
   }))
 
   validation {
@@ -68,6 +76,23 @@ EOT
       if trimspace(r.using_custom_inventory_bridge_bucket) != ""
     ])
     error_message = "using_custom_inventory_bridge_bucket must be a valid GCS bucket name (3-63 chars, lowercase letters, numbers, '-', '_', '.', starting and ending with a letter or number)."
+  }
+
+  validation {
+    condition = alltrue([
+      for r in var.region_configuration :
+      can(regex("^projects/[^/[:space:]]+/locations/[^/[:space:]]+/keyRings/[^/[:space:]]+/cryptoKeys/[^/[:space:]]+$", trimspace(r.inventory_bridge_kms_key_name)))
+      if trimspace(r.inventory_bridge_kms_key_name) != ""
+    ])
+    error_message = "inventory_bridge_kms_key_name must be a fully-qualified Cloud KMS key resource ID with no whitespace (projects/PROJECT/locations/LOCATION/keyRings/RING/cryptoKeys/KEY)."
+  }
+
+  validation {
+    condition = alltrue([
+      for r in var.region_configuration :
+      !(trimspace(r.using_custom_inventory_bridge_bucket) != "" && trimspace(r.inventory_bridge_kms_key_name) != "")
+    ])
+    error_message = "inventory_bridge_kms_key_name cannot be set together with using_custom_inventory_bridge_bucket for the same region. A customer-provided bucket must have its own CMEK default key and service-agent key access configured outside this template; this template only manages CMEK for buckets it creates."
   }
 }
 

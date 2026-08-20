@@ -1,10 +1,19 @@
-## 0.8.0
-
+## 0.8.1
 - Added two optional inputs to delegate IAM management to external tooling, both defaulting to `true` so existing configurations are unaffected:
   - `manage_gcs_iam` — when `false`, the module no longer creates the Clumio GCS custom IAM roles or their bindings to the customer service account.
   - `manage_service_account_impersonation` — when `false`, the module no longer grants `roles/iam.serviceAccountTokenCreator` or `roles/iam.serviceAccountUser` to the Clumio service account on the customer service account.
 - When either flag is `false`, provide an existing `customer_service_account_email` so the module can still wire the kept resources and the Clumio post-process handshake. The custom-role ids are now derived from shared locals so bindings and roles stay consistent whether or not the module manages them.
 - Added an `examples/external_iam_management` example and plan-only `terraform test` coverage for the new flags.
+
+
+## 0.8.0
+- Added optional customer-managed encryption key (CMEK) support for Clumio-created inventory bridge buckets via the new `inventory_bridge_kms_key_name` field of `region_configuration`. The template grants the required service agents access to the key.
+- Reduced service agent permissions: Cloud Asset now publishes only to the Clumio delta topic, and Storage Transfer uses its service agent role instead of `roles/pubsub.editor`.
+- Tightened the Cloud Monitoring permissions of the Clumio inventory and backup custom roles.
+- Enforced uniform bucket-level access and disabled soft delete on Clumio-created inventory bridge buckets.
+- Removed the self-referential IAM policy custom role and binding from the Clumio delta service account.
+- Bumped the config template version to `2.4` and the GCS template version to `1.12`.
+
 
 ## 0.7.0
 

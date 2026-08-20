@@ -1,6 +1,6 @@
 locals {
   # Always update the gcs_version when updating this file
-  gcs_version = "1.8"
+  gcs_version = "1.12"
 }
 
 # Enable the Google Cloud Storage API
@@ -52,10 +52,11 @@ data "google_storage_transfer_project_service_account" "storagetransfer" {
   depends_on = [google_project_service.storagetransfer]
 }
 
-resource "google_project_iam_member" "storagetransfer_service_agent_pubsub_editor" {
+# STS needs this to create the topic and subscription behind the inventory replication job.
+resource "google_project_iam_member" "storagetransfer_service_agent" {
   count   = var.is_gcs_enabled ? 1 : 0
   project = var.project_id
-  role    = "roles/pubsub.editor"
+  role    = "roles/storagetransfer.serviceAgent"
   member  = data.google_storage_transfer_project_service_account.storagetransfer[0].member
 
   depends_on = [
@@ -70,6 +71,9 @@ data "google_storage_project_service_account" "gcs" {
   depends_on = [google_project_service.storage_api]
 }
 
+# Storage Transfer creates its own topic at job-creation time, so there is no topic to scope to at
+# apply time; the GCS service agent needs project-wide publish for cross-bucket replication.
+# Reference: https://docs.cloud.google.com/storage-transfer/docs/cross-bucket-replication#get-required-roles
 resource "google_project_iam_member" "storage_service_agent_pubsub_publisher" {
   count   = var.is_gcs_enabled ? 1 : 0
   project = var.project_id
@@ -81,16 +85,14 @@ resource "google_project_iam_member" "storage_service_agent_pubsub_publisher" {
   ]
 }
 
-resource "google_project_iam_member" "cloudasset_service_agent_pubsub_publisher" {
+# The Clumio delta feed publishes only to this topic, so the Cloud Asset agent is granted publish
+# on the topic rather than project-wide.
+resource "google_pubsub_topic_iam_member" "cloudasset_service_agent_pubsub_publisher" {
   count   = var.is_gcs_enabled ? 1 : 0
   project = var.project_id
+  topic   = google_pubsub_topic.customer_delta[0].name
   role    = "roles/pubsub.publisher"
   member  = google_project_service_identity.cloudasset[0].member
-
-  depends_on = [
-    google_project_service.pubsub,
-    google_project_service_identity.cloudasset,
-  ]
 }
 
 # Enable Storage Insights so Clumio can configure GCS inventory reports.
@@ -130,12 +132,50 @@ resource "google_project_service" "monitoring_api" {
 resource "google_storage_bucket" "clumio_inventory_bridge" {
   for_each = local.regions_to_create_clumio_inventory_bridge_bucket
 
-  project                  = var.project_id
-  name                     = "clumio-inventory-bridge-${each.key}-${local.clumio_inventory_bridge_token_hash}"
-  location                 = each.key
-  storage_class            = "STANDARD"
-  public_access_prevention = "enforced"
-  labels                   = var.gcs_inventory_bridge_bucket_labels
+  project                     = var.project_id
+  name                        = "clumio-inventory-bridge-${each.key}-${local.clumio_inventory_bridge_token_hash}"
+  location                    = each.key
+  storage_class               = "STANDARD"
+  public_access_prevention    = "enforced"
+  uniform_bucket_level_access = true
+  labels                      = var.gcs_inventory_bridge_bucket_labels
+
+  # force_destroy is intentionally left false (the default) to prevent Terraform from
+  # deleting a bucket that still holds inventory report objects. The lifecycle_rule below
+  # continuously writes objects retained for 30 days, so `terraform destroy` will fail on
+  # the non-empty bucket by design. Teardown requires manually emptying the bucket first
+  # (e.g. `gcloud storage rm --recursive gs://<bucket>/**`) before destroy will succeed.
+  force_destroy = false
+
+  # Recovery posture is pinned intentionally, not left to provider/API defaults:
+  #   - Object versioning is omitted: inventory reports are regenerated on every inventory
+  #     run, so a deleted/overwritten report is reproduced by the next one. Noncurrent
+  #     versions would add storage cost and lifecycle-management overhead with no recovery
+  #     benefit for reproducible data.
+  #   - No lifecycle { prevent_destroy = true }: the bucket must stay destroyable so
+  #     offboarding (terraform destroy) and re-onboarding (a new clumio_token changes the
+  #     name and forces replacement) work. Replacing an immutable attribute (e.g. location
+  #     or the token-derived name) deletes the bucket and its contents by design.
+  #   - Soft delete is pinned off below for the same regenerable-data reason: a retention
+  #     window would only add soft-deleted-object storage cost without protecting any
+  #     non-reproducible data.
+  soft_delete_policy {
+    retention_duration_seconds = 0
+  }
+
+  # Optional customer-managed encryption key (CMEK). No-op when the region's
+  # inventory_bridge_kms_key_name is empty, in which case the bucket uses Google-managed
+  # encryption. When set, the Cloud Storage service agent must already hold
+  # cryptoKeyEncrypterDecrypter on the key (see google_kms_crypto_key_iam_member below and
+  # the depends_on) or the create is rejected.
+  dynamic "encryption" {
+    # trimspace here matches the normalization used to build local.inventory_bridge_kms_keys, so the
+    # bucket's default key and the service-agent grants always reference the identical key string.
+    for_each = trimspace(each.value.inventory_bridge_kms_key_name) != "" ? [trimspace(each.value.inventory_bridge_kms_key_name)] : []
+    content {
+      default_kms_key_name = encryption.value
+    }
+  }
 
   lifecycle_rule {
     action {
@@ -146,7 +186,59 @@ resource "google_storage_bucket" "clumio_inventory_bridge" {
     }
   }
 
-  depends_on = [google_project_service.storage_api]
+  depends_on = [
+    google_project_service.storage_api,
+    google_kms_crypto_key_iam_member.inventory_bridge_gcs_agent_cmek,
+  ]
+}
+
+# CMEK key access for the service agents that read/write the inventory-bridge bucket. These are
+# created only for keys actually referenced by a region (local.inventory_bridge_kms_keys), so they
+# are a no-op when no CMEK is configured. The deploying identity must be able to set IAM policy on
+# the customer's key (e.g. roles/cloudkms.admin or cryptoKeyIamAdmin on the key); if the customer
+# prefers to manage key IAM themselves, they can pre-grant these roles and remove these resources.
+
+# Enable the Cloud KMS API on the client project. With user_project_override + billing_project =
+# project_id, both the setIamPolicy calls below and the CMEK bucket create bill KMS usage to
+# project_id, so the API must be enabled there even when the key itself lives in another project.
+# Gated on there being at least one CMEK key so non-CMEK deployments don't enable an unused API.
+resource "google_project_service" "cloudkms" {
+  count   = length(local.inventory_bridge_kms_keys) > 0 ? 1 : 0
+  project = var.project_id
+  service = "cloudkms.googleapis.com"
+
+  disable_on_destroy = false
+}
+
+# 1) Cloud Storage service agent: performs encrypt/decrypt of objects using the bucket default key.
+#    This grant is mandatory - without it a bucket create with default_kms_key_name is rejected.
+resource "google_kms_crypto_key_iam_member" "inventory_bridge_gcs_agent_cmek" {
+  for_each      = local.inventory_bridge_kms_keys
+  crypto_key_id = each.value
+  role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+  member        = data.google_storage_project_service_account.gcs[0].member
+
+  depends_on = [google_project_service.cloudkms]
+}
+
+# 2) Storage Insights service agent: writes inventory report objects into the bucket.
+resource "google_kms_crypto_key_iam_member" "inventory_bridge_insights_agent_cmek" {
+  for_each      = local.inventory_bridge_kms_keys
+  crypto_key_id = each.value
+  role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+  member        = google_project_service_identity.storageinsights[0].member
+
+  depends_on = [google_project_service.cloudkms]
+}
+
+# 3) Storage Transfer service agent: reads/writes objects during inventory replication.
+resource "google_kms_crypto_key_iam_member" "inventory_bridge_transfer_agent_cmek" {
+  for_each      = local.inventory_bridge_kms_keys
+  crypto_key_id = each.value
+  role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+  member        = data.google_storage_transfer_project_service_account.storagetransfer[0].member
+
+  depends_on = [google_project_service.cloudkms]
 }
 
 resource "google_project_iam_custom_role" "clumio_gcs_inventory_permission" {
@@ -154,11 +246,13 @@ resource "google_project_iam_custom_role" "clumio_gcs_inventory_permission" {
   project     = var.project_id
   role_id     = local.gcs_custom_role_ids.inventory
   title       = "ClumioGCSInventoryPermissions"
-  description = "Allow read only access to list and inspect GCS buckets for Clumio inventory"
+  description = "Lists GCS buckets and reads project-wide Cloud Monitoring time series for Clumio inventory"
   permissions = [
     "storage.buckets.list",
     "storage.buckets.get",
-    "monitoring.metricDescriptors.list",
+
+    # Cloud Monitoring IAM cannot scope this permission to GCS metrics, so this grants project-wide
+    # time-series reads. Inventory queries filter responses to GCS object-count and total-byte metrics.
     "monitoring.timeSeries.list",
   ]
   stage = "GA"
@@ -176,7 +270,7 @@ resource "google_project_iam_custom_role" "clumio_gcs_backup_permission" {
   project     = var.project_id
   role_id     = local.gcs_custom_role_ids.backup
   title       = "ClumioGCSBackupPermissions"
-  description = "Allows read only access to GCS objects and manage bucket configuration for Clumio backup"
+  description = "Reads GCS objects and project-wide Cloud Monitoring data and configures buckets for Clumio backup"
   permissions = [
     # Read source objects and bucket metadata for backup.
     "storage.objects.list",
@@ -202,7 +296,8 @@ resource "google_project_iam_custom_role" "clumio_gcs_backup_permission" {
     "storageinsights.reportConfigs.create",
     "storageinsights.reportConfigs.delete",
 
-    # Read bucket size metrics from Cloud Monitoring.
+    # Backup inventory reads GCS object-count metrics to choose its listing strategy. Cloud Monitoring IAM
+    # cannot scope this permission to GCS metrics, so the role grants project-wide time-series reads.
     "monitoring.timeSeries.list",
   ]
   stage = "GA"
@@ -284,24 +379,4 @@ resource "google_pubsub_topic_iam_member" "clumio_delta_topic_permission_iam_bin
   topic   = google_pubsub_topic.customer_delta[0].name
   role    = local.gcs_custom_role_names.delta_topic
   member  = "serviceAccount:${local.service_account_details.email}"
-}
-
-resource "google_project_iam_custom_role" "clumio_delta_federated_sa_policy_permission" {
-  count       = local.manage_gcs_iam ? 1 : 0
-  project     = var.project_id
-  role_id     = local.gcs_custom_role_ids.delta_federation
-  title       = "ClumioDeltaFederatedSAPolicyPermissions"
-  description = "Allow exact IAM policy management on the customer service account used for Clumio delta ingestion"
-  permissions = [
-    "iam.serviceAccounts.getIamPolicy",
-    "iam.serviceAccounts.setIamPolicy",
-  ]
-  stage = "GA"
-}
-
-resource "google_service_account_iam_member" "clumio_delta_federated_sa_policy_permission_iam_binding" {
-  count              = local.manage_gcs_iam ? 1 : 0
-  service_account_id = local.service_account_details.name
-  role               = local.gcs_custom_role_names.delta_federation
-  member             = "serviceAccount:${local.service_account_details.email}"
 }
