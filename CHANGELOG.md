@@ -3,7 +3,7 @@
   - `manage_api_enablement` — when `false`, the module no longer enables the required Google APIs (Cloud Storage, Storage Transfer, Pub/Sub, Cloud Asset, Storage Insights, Monitoring, and Cloud KMS when a CMEK key is configured).
   - `manage_service_agent_bindings` — when `false`, the module no longer materializes the Cloud Asset and Storage Insights service identities, no longer binds the roles the Storage Transfer, Cloud Storage, Cloud Asset, and Storage Insights service agents need, and no longer grants those agents CMEK key access.
 - With all four `manage_*` flags set to `false`, the module provisions only the resources still owned by the caller's platform tooling's Terraform runner: the inventory-bridge bucket, the delta Pub/Sub topic, the Cloud Asset feed, and the Clumio post-process handshake.
-- Extended the `examples/external_iam_management` example and the plan-only `terraform test` coverage for the new flags.
+- Extended the `examples/external_resource_management` example and the plan-only `terraform test` coverage for the new flags.
 
 
 ## 0.8.1
@@ -11,7 +11,7 @@
   - `manage_gcs_iam` — when `false`, the module no longer creates the Clumio GCS custom IAM roles or their bindings to the customer service account.
   - `manage_service_account_impersonation` — when `false`, the module no longer grants `roles/iam.serviceAccountTokenCreator` or `roles/iam.serviceAccountUser` to the Clumio service account on the customer service account.
 - When either flag is `false`, provide an existing `customer_service_account_email` so the module can still wire the kept resources and the Clumio post-process handshake. The custom-role ids are now derived from shared locals so bindings and roles stay consistent whether or not the module manages them.
-- Added an `examples/external_iam_management` example and plan-only `terraform test` coverage for the new flags.
+- Added an `examples/external_resource_management` example and plan-only `terraform test` coverage for the new flags.
 
 
 ## 0.8.0

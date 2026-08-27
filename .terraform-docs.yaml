@@ -45,7 +45,7 @@ content: |-
   so the module can wire the remaining resources and the Clumio post-process handshake. The module
   still enables the required Google APIs, materializes the service agents, and creates the
   inventory-bridge bucket, delta topic and Cloud Asset feed. See
-  `examples/external_iam_management` for a complete configuration.
+  `examples/external_resource_management` for a complete configuration.
 
   {{ .Requirements }}
 

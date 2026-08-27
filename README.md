@@ -62,7 +62,7 @@ When any of these flags is `false`, pass an existing service account via
 `customer_service_account_email` so the module can wire the remaining resources and the Clumio
 post-process handshake. Whatever you do not delegate stays managed by the module. With all four
 flags set to `false`, the module provisions only the inventory-bridge bucket, the delta topic, the
-Cloud Asset feed, and the Clumio post-process handshake. See `examples/external_iam_management`
+Cloud Asset feed, and the Clumio post-process handshake. See `examples/external_resource_management`
 for a complete configuration.
 
 ## Requirements
