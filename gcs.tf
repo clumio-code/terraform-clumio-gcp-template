@@ -1,6 +1,6 @@
 locals {
   # Always update the gcs_version when updating this file
-  gcs_version = "1.12"
+  gcs_version = "1.14"
 }
 
 # Enable the Google Cloud Storage API
@@ -14,6 +14,7 @@ resource "google_project_service" "storage_api" {
 }
 
 resource "google_project_service" "storagetransfer" {
+  count   = var.is_gcs_enabled ? 1 : 0
   project = var.project_id
   service = "storagetransfer.googleapis.com"
 
@@ -97,6 +98,7 @@ resource "google_pubsub_topic_iam_member" "cloudasset_service_agent_pubsub_publi
 
 # Enable Storage Insights so Clumio can configure GCS inventory reports.
 resource "google_project_service" "storageinsights" {
+  count   = var.is_gcs_enabled ? 1 : 0
   project = var.project_id
   service = "storageinsights.googleapis.com"
 
@@ -195,15 +197,17 @@ resource "google_storage_bucket" "clumio_inventory_bridge" {
 # CMEK key access for the service agents that read/write the inventory-bridge bucket. These are
 # created only for keys actually referenced by a region (local.inventory_bridge_kms_keys), so they
 # are a no-op when no CMEK is configured. The deploying identity must be able to set IAM policy on
-# the customer's key (e.g. roles/cloudkms.admin or cryptoKeyIamAdmin on the key); if the customer
-# prefers to manage key IAM themselves, they can pre-grant these roles and remove these resources.
+# the customer's key (roles/cloudkms.admin, or any role granting cloudkms.cryptoKeys.setIamPolicy
+# on it). A customer who prefers to manage key IAM themselves can pre-grant these roles and remove
+# these resources.
 
 # Enable the Cloud KMS API on the client project. With user_project_override + billing_project =
 # project_id, both the setIamPolicy calls below and the CMEK bucket create bill KMS usage to
 # project_id, so the API must be enabled there even when the key itself lives in another project.
 # Gated on there being at least one CMEK key so non-CMEK deployments don't enable an unused API.
+# The delta topic key counts here too: a deployment that encrypts only the topic still needs the API.
 resource "google_project_service" "cloudkms" {
-  count   = length(local.inventory_bridge_kms_keys) > 0 ? 1 : 0
+  count   = length(local.inventory_bridge_kms_keys) > 0 || local.delta_topic_cmek_enabled ? 1 : 0
   project = var.project_id
   service = "cloudkms.googleapis.com"
 
@@ -237,6 +241,31 @@ resource "google_kms_crypto_key_iam_member" "inventory_bridge_transfer_agent_cme
   crypto_key_id = each.value
   role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
   member        = data.google_storage_transfer_project_service_account.storagetransfer[0].member
+
+  depends_on = [google_project_service.cloudkms]
+}
+
+# CMEK key access for the delta feed topic. Keyed off local.delta_topic_kms_key rather than the
+# per-region bucket keys: the topic is project-global, so it takes a single key of its own.
+
+# The Pub/Sub service agent is not created until the API is first used, so it is materialized
+# explicitly before the key grant below can reference it.
+resource "google_project_service_identity" "pubsub" {
+  provider = google-beta
+  count    = local.delta_topic_cmek_enabled ? 1 : 0
+  project  = var.project_id
+  service  = "pubsub.googleapis.com"
+
+  depends_on = [google_project_service.pubsub]
+}
+
+# Pub/Sub service agent: encrypts and decrypts messages published to the delta topic. Without this
+# grant the topic create is rejected, and publishes fail with FAILED_PRECONDITION.
+resource "google_kms_crypto_key_iam_member" "delta_topic_pubsub_agent_cmek" {
+  count         = local.delta_topic_cmek_enabled ? 1 : 0
+  crypto_key_id = local.delta_topic_kms_key
+  role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+  member        = google_project_service_identity.pubsub[0].member
 
   depends_on = [google_project_service.cloudkms]
 }

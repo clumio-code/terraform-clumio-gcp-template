@@ -42,8 +42,8 @@ module "clumio_gcp_connection" {
 | Name | Version |
 |------|---------|
 | <a name="requirement_clumio"></a> [clumio](#requirement\_clumio) | >= 0.22.0 |
-| <a name="requirement_google"></a> [google](#requirement\_google) | >= 5.0 |
-| <a name="requirement_google-beta"></a> [google-beta](#requirement\_google-beta) | >= 5.0 |
+| <a name="requirement_google"></a> [google](#requirement\_google) | >= 5.0, < 8.0 |
+| <a name="requirement_google-beta"></a> [google-beta](#requirement\_google-beta) | >= 5.39, < 8.0 |
 | <a name="requirement_random"></a> [random](#requirement\_random) | ~> 3.0 |
 
 ## Providers
@@ -51,8 +51,8 @@ module "clumio_gcp_connection" {
 | Name | Version |
 |------|---------|
 | <a name="provider_clumio"></a> [clumio](#provider\_clumio) | >= 0.22.0 |
-| <a name="provider_google"></a> [google](#provider\_google) | >= 5.0 |
-| <a name="provider_google-beta"></a> [google-beta](#provider\_google-beta) | >= 5.0 |
+| <a name="provider_google"></a> [google](#provider\_google) | >= 5.0, < 8.0 |
+| <a name="provider_google-beta"></a> [google-beta](#provider\_google-beta) | >= 5.39, < 8.0 |
 | <a name="provider_random"></a> [random](#provider\_random) | ~> 3.0 |
 
 ## Modules
@@ -65,8 +65,10 @@ No modules.
 |------|------|
 | [clumio_post_process_gcp_connection.post_process](https://registry.terraform.io/providers/clumio-code/clumio/latest/docs/resources/post_process_gcp_connection) | resource |
 | [google-beta_google_project_service_identity.cloudasset](https://registry.terraform.io/providers/hashicorp/google-beta/latest/docs/resources/google_project_service_identity) | resource |
+| [google-beta_google_project_service_identity.pubsub](https://registry.terraform.io/providers/hashicorp/google-beta/latest/docs/resources/google_project_service_identity) | resource |
 | [google-beta_google_project_service_identity.storageinsights](https://registry.terraform.io/providers/hashicorp/google-beta/latest/docs/resources/google_project_service_identity) | resource |
 | [google_cloud_asset_project_feed.customer_delta](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/cloud_asset_project_feed) | resource |
+| [google_kms_crypto_key_iam_member.delta_topic_pubsub_agent_cmek](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/kms_crypto_key_iam_member) | resource |
 | [google_kms_crypto_key_iam_member.inventory_bridge_gcs_agent_cmek](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/kms_crypto_key_iam_member) | resource |
 | [google_kms_crypto_key_iam_member.inventory_bridge_insights_agent_cmek](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/kms_crypto_key_iam_member) | resource |
 | [google_kms_crypto_key_iam_member.inventory_bridge_transfer_agent_cmek](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/kms_crypto_key_iam_member) | resource |
@@ -107,8 +109,9 @@ No modules.
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_clumio_service_account_email"></a> [clumio\_service\_account\_email](#input\_clumio\_service\_account\_email) | The email of the Clumio service account. | `string` | n/a | yes |
-| <a name="input_clumio_token"></a> [clumio\_token](#input\_clumio\_token) | The GCP integration ID token. | `string` | n/a | yes |
-| <a name="input_customer_service_account_email"></a> [customer\_service\_account\_email](#input\_customer\_service\_account\_email) | The email of the Customer's service account. If not provided, a service account will be created by this template. | `string` | `""` | no |
+| <a name="input_clumio_token"></a> [clumio\_token](#input\_clumio\_token) | Unique identifier that Clumio uses to identify this GCP connection.<br/>It acts as a handle for the connection rather than a credential. | `string` | n/a | yes |
+| <a name="input_customer_service_account_email"></a> [customer\_service\_account\_email](#input\_customer\_service\_account\_email) | The email of the Customer's service account. If not provided, a service account will be created by this template. When provided, it must be a user-managed service account. | `string` | `""` | no |
+| <a name="input_delta_topic_kms_key_name"></a> [delta\_topic\_kms\_key\_name](#input\_delta\_topic\_kms\_key\_name) | Optional customer-managed encryption key (CMEK) for the Clumio delta feed Pub/Sub topic.<br/><br/>  Leave empty (default) to use Google-managed encryption. When set, the topic is created with this<br/>  key and the Pub/Sub service agent is granted cryptoKeyEncrypterDecrypter on it, so the deploying<br/>  identity must be able to set IAM policy on the key (roles/cloudkms.admin, or any role granting<br/>  cloudkms.cryptoKeys.setIamPolicy on it) - the same requirement the inventory-bridge keys carry.<br/>  Required for customers subject to the constraints/gcp.restrictNonCmekServices org policy, which<br/>  otherwise rejects the topic create. Ignored when is\_gcs\_enabled is false, since no topic is<br/>  created.<br/><br/>  The template orders the key grant before the topic, but Cloud KMS IAM can take time to become<br/>  effective. If the first apply fails the topic create with FAILED\_PRECONDITION, re-run<br/>  terraform apply.<br/><br/>  Rotate by adding a version to this key rather than by naming a different key. Pub/Sub does not<br/>  re-encrypt messages already published, so replacing the key withdraws the service agent's access<br/>  to the old one and any message still awaiting delivery under it cannot be read. Clearing this<br/>  variable after a key has been set has the same effect: new messages revert to Google-managed<br/>  encryption, but the grant is revoked and anything still retained under the old key becomes<br/>  unreadable. | `string` | `""` | no |
 | <a name="input_gcs_inventory_bridge_bucket_labels"></a> [gcs\_inventory\_bridge\_bucket\_labels](#input\_gcs\_inventory\_bridge\_bucket\_labels) | Labels to apply to Clumio inventory bridge buckets. Use this for labels required by your organization policies. | `map(string)` | `{}` | no |
 | <a name="input_is_gcs_enabled"></a> [is\_gcs\_enabled](#input\_is\_gcs\_enabled) | Flag to indicate if Clumio Protect for GCS is enabled | `bool` | `false` | no |
 | <a name="input_project_id"></a> [project\_id](#input\_project\_id) | Client GCP project Id. | `string` | n/a | yes |

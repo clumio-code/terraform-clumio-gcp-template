@@ -1,3 +1,11 @@
+## 0.9.0
+
+- Added optional customer-managed encryption key (CMEK) support for the Clumio delta feed Pub/Sub topic via the new `delta_topic_kms_key_name` variable. The template grants the Pub/Sub service agent access to the key.
+- Added input validation for `project_id`, `clumio_token`, `clumio_service_account_email`, `customer_service_account_email`, and the inventory bridge bucket labels.
+- Enabled the Storage Transfer and Storage Insights APIs only when `is_gcs_enabled` is true.
+- Constrained the Google provider to `< 8.0` and raised the Google Beta provider requirement to `>= 5.39, < 8.0`.
+- Bumped the config template version to `2.6` and the GCS template version to `1.14`.
+
 ## 0.8.0
 
 - Added optional customer-managed encryption key (CMEK) support for Clumio-created inventory bridge buckets via the new `inventory_bridge_kms_key_name` field of `region_configuration`. The template grants the required service agents access to the key.
