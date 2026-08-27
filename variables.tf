@@ -134,3 +134,41 @@ EOT
   type    = bool
   default = true
 }
+
+variable "manage_api_enablement" {
+  description = <<EOT
+
+  Whether this module enables the Google APIs required for Clumio GCS backup on the project
+  (Cloud Storage, Storage Transfer, Pub/Sub, Cloud Asset, Storage Insights, and Monitoring; and
+  Cloud KMS when a CMEK key is configured).
+
+  Defaults to true, preserving the module's original behavior. Set to false when these APIs are
+  enabled outside this module (for example by your own platform tooling), in which case the module
+  creates no `google_project_service` resources for them. This has no effect unless `is_gcs_enabled`
+  is true.
+
+EOT
+
+  type    = bool
+  default = true
+}
+
+variable "manage_service_agent_bindings" {
+  description = <<EOT
+
+  Whether this module materializes the Google-managed service identities/agents (Cloud Asset and
+  Storage Insights) and binds the IAM roles the service agents need for GCS backup (Storage Transfer,
+  Cloud Storage, Cloud Asset, and Storage Insights agents), including the CMEK key grants to those
+  agents.
+
+  Defaults to true, preserving the module's original behavior. Set to false when the service agents
+  and their role bindings are provisioned outside this module (for example by your own platform
+  tooling), in which case the module creates neither the `google_project_service_identity` resources,
+  the service-agent IAM bindings, nor the agent CMEK grants. This has no effect unless
+  `is_gcs_enabled` is true.
+
+EOT
+
+  type    = bool
+  default = true
+}

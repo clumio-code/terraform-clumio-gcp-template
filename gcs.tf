@@ -5,7 +5,7 @@ locals {
 
 # Enable the Google Cloud Storage API
 resource "google_project_service" "storage_api" {
-  count   = var.is_gcs_enabled ? 1 : 0
+  count   = local.manage_api_enablement ? 1 : 0
   project = var.project_id
   service = "storage.googleapis.com"
 
@@ -14,6 +14,7 @@ resource "google_project_service" "storage_api" {
 }
 
 resource "google_project_service" "storagetransfer" {
+  count   = local.manage_api_enablement ? 1 : 0
   project = var.project_id
   service = "storagetransfer.googleapis.com"
 
@@ -21,7 +22,7 @@ resource "google_project_service" "storagetransfer" {
 }
 
 resource "google_project_service" "pubsub" {
-  count   = var.is_gcs_enabled ? 1 : 0
+  count   = local.manage_api_enablement ? 1 : 0
   project = var.project_id
   service = "pubsub.googleapis.com"
 
@@ -29,7 +30,7 @@ resource "google_project_service" "pubsub" {
 }
 
 resource "google_project_service" "cloudasset" {
-  count   = var.is_gcs_enabled ? 1 : 0
+  count   = local.manage_api_enablement ? 1 : 0
   project = var.project_id
   service = "cloudasset.googleapis.com"
 
@@ -38,7 +39,7 @@ resource "google_project_service" "cloudasset" {
 
 resource "google_project_service_identity" "cloudasset" {
   provider = google-beta
-  count    = var.is_gcs_enabled ? 1 : 0
+  count    = local.manage_service_agent_bindings ? 1 : 0
   project  = var.project_id
   service  = "cloudasset.googleapis.com"
 
@@ -46,7 +47,7 @@ resource "google_project_service_identity" "cloudasset" {
 }
 
 data "google_storage_transfer_project_service_account" "storagetransfer" {
-  count   = var.is_gcs_enabled ? 1 : 0
+  count   = local.manage_service_agent_bindings ? 1 : 0
   project = var.project_id
 
   depends_on = [google_project_service.storagetransfer]
@@ -54,7 +55,7 @@ data "google_storage_transfer_project_service_account" "storagetransfer" {
 
 # STS needs this to create the topic and subscription behind the inventory replication job.
 resource "google_project_iam_member" "storagetransfer_service_agent" {
-  count   = var.is_gcs_enabled ? 1 : 0
+  count   = local.manage_service_agent_bindings ? 1 : 0
   project = var.project_id
   role    = "roles/storagetransfer.serviceAgent"
   member  = data.google_storage_transfer_project_service_account.storagetransfer[0].member
@@ -65,7 +66,7 @@ resource "google_project_iam_member" "storagetransfer_service_agent" {
 }
 
 data "google_storage_project_service_account" "gcs" {
-  count   = var.is_gcs_enabled ? 1 : 0
+  count   = local.manage_service_agent_bindings ? 1 : 0
   project = var.project_id
 
   depends_on = [google_project_service.storage_api]
@@ -75,7 +76,7 @@ data "google_storage_project_service_account" "gcs" {
 # apply time; the GCS service agent needs project-wide publish for cross-bucket replication.
 # Reference: https://docs.cloud.google.com/storage-transfer/docs/cross-bucket-replication#get-required-roles
 resource "google_project_iam_member" "storage_service_agent_pubsub_publisher" {
-  count   = var.is_gcs_enabled ? 1 : 0
+  count   = local.manage_service_agent_bindings ? 1 : 0
   project = var.project_id
   role    = "roles/pubsub.publisher"
   member  = data.google_storage_project_service_account.gcs[0].member
@@ -88,7 +89,7 @@ resource "google_project_iam_member" "storage_service_agent_pubsub_publisher" {
 # The Clumio delta feed publishes only to this topic, so the Cloud Asset agent is granted publish
 # on the topic rather than project-wide.
 resource "google_pubsub_topic_iam_member" "cloudasset_service_agent_pubsub_publisher" {
-  count   = var.is_gcs_enabled ? 1 : 0
+  count   = local.manage_service_agent_bindings ? 1 : 0
   project = var.project_id
   topic   = google_pubsub_topic.customer_delta[0].name
   role    = "roles/pubsub.publisher"
@@ -97,6 +98,7 @@ resource "google_pubsub_topic_iam_member" "cloudasset_service_agent_pubsub_publi
 
 # Enable Storage Insights so Clumio can configure GCS inventory reports.
 resource "google_project_service" "storageinsights" {
+  count   = local.manage_api_enablement ? 1 : 0
   project = var.project_id
   service = "storageinsights.googleapis.com"
 
@@ -107,7 +109,7 @@ resource "google_project_service" "storageinsights" {
 # source buckets when generating inventory reports.
 resource "google_project_service_identity" "storageinsights" {
   provider = google-beta
-  count    = var.is_gcs_enabled ? 1 : 0
+  count    = local.manage_service_agent_bindings ? 1 : 0
   project  = var.project_id
   service  = "storageinsights.googleapis.com"
 
@@ -115,14 +117,14 @@ resource "google_project_service_identity" "storageinsights" {
 }
 
 resource "google_project_iam_member" "insights_collector" {
-  count   = var.is_gcs_enabled ? 1 : 0
+  count   = local.manage_service_agent_bindings ? 1 : 0
   project = var.project_id
   role    = "roles/storage.insightsCollectorService"
   member  = google_project_service_identity.storageinsights[0].member
 }
 
 resource "google_project_service" "monitoring_api" {
-  count   = var.is_gcs_enabled ? 1 : 0
+  count   = local.manage_api_enablement ? 1 : 0
   project = var.project_id
   service = "monitoring.googleapis.com"
 
@@ -203,7 +205,7 @@ resource "google_storage_bucket" "clumio_inventory_bridge" {
 # project_id, so the API must be enabled there even when the key itself lives in another project.
 # Gated on there being at least one CMEK key so non-CMEK deployments don't enable an unused API.
 resource "google_project_service" "cloudkms" {
-  count   = length(local.inventory_bridge_kms_keys) > 0 ? 1 : 0
+  count   = local.manage_api_enablement && length(local.inventory_bridge_kms_keys) > 0 ? 1 : 0
   project = var.project_id
   service = "cloudkms.googleapis.com"
 
@@ -213,7 +215,7 @@ resource "google_project_service" "cloudkms" {
 # 1) Cloud Storage service agent: performs encrypt/decrypt of objects using the bucket default key.
 #    This grant is mandatory - without it a bucket create with default_kms_key_name is rejected.
 resource "google_kms_crypto_key_iam_member" "inventory_bridge_gcs_agent_cmek" {
-  for_each      = local.inventory_bridge_kms_keys
+  for_each      = local.manage_service_agent_bindings ? local.inventory_bridge_kms_keys : toset([])
   crypto_key_id = each.value
   role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
   member        = data.google_storage_project_service_account.gcs[0].member
@@ -223,7 +225,7 @@ resource "google_kms_crypto_key_iam_member" "inventory_bridge_gcs_agent_cmek" {
 
 # 2) Storage Insights service agent: writes inventory report objects into the bucket.
 resource "google_kms_crypto_key_iam_member" "inventory_bridge_insights_agent_cmek" {
-  for_each      = local.inventory_bridge_kms_keys
+  for_each      = local.manage_service_agent_bindings ? local.inventory_bridge_kms_keys : toset([])
   crypto_key_id = each.value
   role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
   member        = google_project_service_identity.storageinsights[0].member
@@ -233,7 +235,7 @@ resource "google_kms_crypto_key_iam_member" "inventory_bridge_insights_agent_cme
 
 # 3) Storage Transfer service agent: reads/writes objects during inventory replication.
 resource "google_kms_crypto_key_iam_member" "inventory_bridge_transfer_agent_cmek" {
-  for_each      = local.inventory_bridge_kms_keys
+  for_each      = local.manage_service_agent_bindings ? local.inventory_bridge_kms_keys : toset([])
   crypto_key_id = each.value
   role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
   member        = data.google_storage_transfer_project_service_account.storagetransfer[0].member
