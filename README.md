@@ -37,6 +37,34 @@ module "clumio_gcp_connection" {
 }
 ```
 
+## Delegated IAM management
+
+By default this module manages everything Clumio needs, including the customer service account,
+the impersonation grants, the GCS custom IAM roles and their bindings, the Google API enablement,
+and the Google service agents/identities and their bindings. If your organization provisions some
+of that out-of-band (for example through a central platform), you can turn the relevant parts off
+with four optional inputs (all default to `true`, so the default behavior is unchanged):
+
+- `manage_gcs_iam = false` — the module does not create the Clumio GCS custom roles or their
+  bindings to the customer service account. Provision equivalent roles/bindings externally.
+- `manage_service_account_impersonation = false` — the module does not grant
+  `roles/iam.serviceAccountTokenCreator` / `roles/iam.serviceAccountUser` to the Clumio service
+  account on the customer service account.
+- `manage_api_enablement = false` — the module does not enable the required Google APIs (Cloud
+  Storage, Storage Transfer, Pub/Sub, Cloud Asset, Storage Insights, Monitoring, and Cloud KMS
+  when a CMEK key is configured). Enable those APIs externally.
+- `manage_service_agent_bindings = false` — the module does not materialize the Cloud Asset and
+  Storage Insights service identities, does not bind the roles the Storage Transfer, Cloud Storage,
+  Cloud Asset, and Storage Insights service agents need, and does not grant those agents CMEK key
+  access. Provision the service agents and their bindings externally.
+
+When any of these flags is `false`, pass an existing service account via
+`customer_service_account_email` so the module can wire the remaining resources and the Clumio
+post-process handshake. Whatever you do not delegate stays managed by the module. With all four
+flags set to `false`, the module provisions only the inventory-bridge bucket, the delta topic, the
+Cloud Asset feed, and the Clumio post-process handshake. See `examples/external_resource_management`
+for a complete configuration.
+
 ## Requirements
 
 | Name | Version |
@@ -111,6 +139,10 @@ No modules.
 | <a name="input_customer_service_account_email"></a> [customer\_service\_account\_email](#input\_customer\_service\_account\_email) | The email of the Customer's service account. If not provided, a service account will be created by this template. | `string` | `""` | no |
 | <a name="input_gcs_inventory_bridge_bucket_labels"></a> [gcs\_inventory\_bridge\_bucket\_labels](#input\_gcs\_inventory\_bridge\_bucket\_labels) | Labels to apply to Clumio inventory bridge buckets. Use this for labels required by your organization policies. | `map(string)` | `{}` | no |
 | <a name="input_is_gcs_enabled"></a> [is\_gcs\_enabled](#input\_is\_gcs\_enabled) | Flag to indicate if Clumio Protect for GCS is enabled | `bool` | `false` | no |
+| <a name="input_manage_api_enablement"></a> [manage\_api\_enablement](#input\_manage\_api\_enablement) | Whether this module enables the Google APIs required for Clumio GCS backup on the project (Cloud Storage, Storage Transfer, Pub/Sub, Cloud Asset, Storage Insights, and Monitoring; and Cloud KMS when a CMEK key is configured).<br/><br/>  Defaults to true, preserving the module's original behavior. Set to false when these APIs are<br/>  enabled outside this module (for example by your own platform tooling), in which case the module<br/>  creates no `google_project_service` resources for them. This has no effect unless `is_gcs_enabled`<br/>  is true. | `bool` | `true` | no |
+| <a name="input_manage_gcs_iam"></a> [manage\_gcs\_iam](#input\_manage\_gcs\_iam) | Whether this module manages the Clumio GCS custom IAM roles and their bindings to the customer service account.<br/><br/>  Defaults to true, preserving the module's original behavior. Set to false when the custom roles<br/>  and role bindings are provisioned outside this module (for example by your own platform tooling),<br/>  in which case the module creates neither the `google_project_iam_custom_role` resources nor the<br/>  corresponding IAM bindings. This has no effect unless `is_gcs_enabled` is true. | `bool` | `true` | no |
+| <a name="input_manage_service_account_impersonation"></a> [manage\_service\_account\_impersonation](#input\_manage\_service\_account\_impersonation) | Whether this module grants the Clumio service account impersonation of the customer service account, i.e. the `roles/iam.serviceAccountTokenCreator` and `roles/iam.serviceAccountUser` bindings on the customer service account.<br/><br/>  Defaults to true, preserving the module's original behavior. Set to false when these impersonation<br/>  grants are provisioned outside this module (for example by your own platform tooling). | `bool` | `true` | no |
+| <a name="input_manage_service_agent_bindings"></a> [manage\_service\_agent\_bindings](#input\_manage\_service\_agent\_bindings) | Whether this module materializes the Google-managed service identities/agents (Cloud Asset and Storage Insights) and binds the IAM roles the service agents need for GCS backup (Storage Transfer, Cloud Storage, Cloud Asset, and Storage Insights agents), including the CMEK key grants to those agents.<br/><br/>  Defaults to true, preserving the module's original behavior. Set to false when the service agents<br/>  and their role bindings are provisioned outside this module (for example by your own platform<br/>  tooling), in which case the module creates neither the `google_project_service_identity` resources,<br/>  the service-agent IAM bindings, nor the agent CMEK grants. This has no effect unless<br/>  `is_gcs_enabled` is true. | `bool` | `true` | no |
 | <a name="input_project_id"></a> [project\_id](#input\_project\_id) | Client GCP project Id. | `string` | n/a | yes |
 | <a name="input_region_configuration"></a> [region\_configuration](#input\_region\_configuration) | Per-region configuration for Clumio backup capabilities in GCP.<br/><br/>  Each entry defines a GCP region and, optionally, an existing inventory bridge bucket for that region.<br/>  Leave using\_custom\_inventory\_bridge\_bucket empty (default) to have Clumio create the inventory bridge<br/>  bucket. Set it to the name of an existing bucket to have Clumio use that bucket instead; in that case no<br/>  bucket is created for the region. | <pre>list(object({<br/>    region                               = string<br/>    using_custom_inventory_bridge_bucket = optional(string, "")<br/>    # Optional customer-managed encryption key (CMEK) for the region's inventory-bridge bucket.<br/>    # Leave empty (default) to use Google-managed encryption. When set, the bucket is created with<br/>    # this key as its default encryption key, and the Cloud Storage, Storage Insights, and Storage<br/>    # Transfer service agents are granted cryptoKeyEncrypterDecrypter on it (see gcs.tf). The key's<br/>    # location must be compatible with the region, hence this is per-region rather than a single<br/>    # global key. Required for customers subject to the constraints/gcp.restrictNonCmekServices<br/>    # org policy, which otherwise rejects the bucket create.<br/>    inventory_bridge_kms_key_name = optional(string, "")<br/>  }))</pre> | n/a | yes |
 

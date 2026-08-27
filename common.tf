@@ -66,6 +66,37 @@ locals {
     ["resource.name.startsWith(\"projects/_/buckets/clumio-inventory-bridge-\")"],
     [for name in local.custom_inventory_bridge_bucket_names : "resource.name == \"projects/_/buckets/${name}\""],
   ))
+
+  # Whether the module manages the GCS custom roles and their bindings. Both are gated on GCS being
+  # enabled; when manage_gcs_iam is false they are provisioned outside this module.
+  manage_gcs_iam = var.is_gcs_enabled && var.manage_gcs_iam
+
+  # Whether the module enables the Google APIs required for GCS backup on the project. Gated on GCS
+  # being enabled; when manage_api_enablement is false the APIs are enabled outside this module (for
+  # example by platform tooling) and the module creates no google_project_service resources for them.
+  manage_api_enablement = var.is_gcs_enabled && var.manage_api_enablement
+
+  # Whether the module materializes the Google-managed service identities/agents and binds the roles
+  # they need (Storage Transfer, GCS, Cloud Asset, Storage Insights), including the CMEK key grants
+  # to those agents. Gated on GCS being enabled; when manage_service_agent_bindings is false these are
+  # provisioned outside this module and the module creates neither the service-identity resources, the
+  # agent IAM bindings, nor the agent CMEK grants.
+  manage_service_agent_bindings = var.is_gcs_enabled && var.manage_service_agent_bindings
+
+  # Stable custom-role IDs for the GCS roles. Defined as locals (rather than only on the role
+  # resources) so that the role definition and its IAM binding share a single source of truth for the
+  # id, instead of the binding reading it back off the (now optional) role resource via [0].role_id.
+  gcs_custom_role_ids = {
+    inventory        = "GCSInvPermission_${local.sanitized_clumio_token}"
+    backup           = "GCSBackupPermissions_${local.sanitized_clumio_token}"
+    bucket_iam       = "GCSBucketIamPolicy_${local.sanitized_clumio_token}"
+    restore          = "GCSRestorePermissions_${local.sanitized_clumio_token}"
+    delta_topic      = "DeltaTopicPermission_${local.sanitized_clumio_token}"
+    delta_federation = "DeltaFedSAPolicy_${local.sanitized_clumio_token}"
+  }
+  gcs_custom_role_names = {
+    for key, role_id in local.gcs_custom_role_ids : key => "projects/${var.project_id}/roles/${role_id}"
+  }
 }
 
 resource "google_service_account" "clumio_created_sa" {
@@ -76,6 +107,7 @@ resource "google_service_account" "clumio_created_sa" {
 
 resource "google_service_account_iam_member" "clumio_sa_user" {
   # Allow the Clumio service account to impersonate customer service account.
+  count              = var.manage_service_account_impersonation ? 1 : 0
   service_account_id = local.service_account_details.name
   role               = "roles/iam.serviceAccountUser"
   # Customer side SA only allow's Clumio's SA to impersonate it
@@ -84,6 +116,7 @@ resource "google_service_account_iam_member" "clumio_sa_user" {
 
 resource "google_service_account_iam_member" "allow_token_creator" {
   # Grant ability to mint access tokens once impersonation is established.
+  count              = var.manage_service_account_impersonation ? 1 : 0
   service_account_id = local.service_account_details.name
   role               = "roles/iam.serviceAccountTokenCreator"
 
@@ -92,6 +125,10 @@ resource "google_service_account_iam_member" "allow_token_creator" {
 
 
 resource "clumio_post_process_gcp_connection" "post_process" {
+  # depends_on requires static resource references. Referencing a resource that is gated by count is
+  # valid even when its count is 0 (it simply contributes no instances to the dependency graph), so
+  # the optional roles, bindings and impersonation grants can stay listed here regardless of whether
+  # this module manages them.
   depends_on = [
     google_service_account.clumio_created_sa,
     google_service_account_iam_member.clumio_sa_user,
