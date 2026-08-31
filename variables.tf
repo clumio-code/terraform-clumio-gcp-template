@@ -190,3 +190,44 @@ EOT
     error_message = "delta_topic_kms_key_name must be a fully-qualified Cloud KMS key resource ID that does not contain internal whitespace (projects/PROJECT/locations/LOCATION/keyRings/RING/cryptoKeys/KEY)."
   }
 }
+
+variable "manage_gcs_iam" {
+  description = <<EOT
+
+  Whether this module manages the Clumio GCS custom IAM roles and their bindings to the customer
+  service account.
+
+  Defaults to true, preserving the module's original behavior. Set to false when the custom roles
+  and role bindings are provisioned outside this module (for example by your own platform tooling),
+  in which case the module creates neither the `google_project_iam_custom_role` resources nor the
+  corresponding IAM bindings. This has no effect unless `is_gcs_enabled` is true.
+
+  Intended to be set once, at onboarding time. Flipping it to false on an existing deployment
+  destroys the roles and bindings on the next apply, and GCP reserves a deleted custom role's id
+  for a soft-delete window, so external tooling cannot immediately recreate the same ids.
+
+EOT
+
+  type    = bool
+  default = true
+}
+
+variable "manage_service_account_impersonation" {
+  description = <<EOT
+
+  Whether this module grants the Clumio service account impersonation of the customer service
+  account, i.e. the `roles/iam.serviceAccountTokenCreator` and `roles/iam.serviceAccountUser`
+  bindings on the customer service account.
+
+  Defaults to true, preserving the module's original behavior. Set to false when these impersonation
+  grants are provisioned outside this module (for example by your own platform tooling).
+
+  Intended to be set once, at onboarding time. Flipping it to false on an existing deployment
+  destroys both grants on the next apply, cutting off Clumio's access to the customer service
+  account until they are recreated externally.
+
+EOT
+
+  type    = bool
+  default = true
+}

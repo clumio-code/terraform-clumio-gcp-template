@@ -1,4 +1,8 @@
 terraform {
+  # 1.3 is the floor for the whole module: the moved blocks in common.tf need 1.1, and the
+  # two-argument optional() defaults in variables.tf need 1.3.
+  required_version = ">= 1.3"
+
   required_providers {
     google = {
       source  = "hashicorp/google"

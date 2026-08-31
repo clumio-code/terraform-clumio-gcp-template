@@ -4,6 +4,8 @@
 - Added input validation for `project_id`, `clumio_token`, `clumio_service_account_email`, `customer_service_account_email`, and the inventory bridge bucket labels.
 - Enabled the Storage Transfer and Storage Insights APIs only when `is_gcs_enabled` is true.
 - Constrained the Google provider to `< 8.0` and raised the Google Beta provider requirement to `>= 5.39, < 8.0`.
+- Added `manage_gcs_iam` and `manage_service_account_impersonation` flags, both defaulting to `true`. Set one to `false` to skip the template's GCS custom roles and bindings, or its service account impersonation grants, when your own tooling manages that IAM.
+- Set the minimum Terraform version to `1.3`.
 - Bumped the config template version to `2.6` and the GCS template version to `1.14`.
 
 ## 0.8.0
