@@ -1,22 +1,49 @@
 variable "project_id" {
-  description = "Client GCP project Id."
   type        = string
+  description = "Client GCP project Id."
+
+  validation {
+    condition     = can(regex("^([a-z0-9.-]+:)?[a-z][a-z0-9-]{4,28}[a-z0-9]$", var.project_id))
+    error_message = "The project_id must be 6-30 characters, start with a lowercase letter, contain only lowercase letters, numbers, and hyphens, and not end with a hyphen. Legacy domain-scoped IDs (domain.com:project-id) are also accepted."
+  }
 }
 
 variable "clumio_token" {
-  description = "The GCP integration ID token."
-  type        = string
+  description = <<-EOT
+    Unique identifier that Clumio uses to identify this GCP connection.
+    It acts as a handle for the connection rather than a credential.
+  EOT
+
+  type = string
+
+  validation {
+    condition     = trimspace(var.clumio_token) != ""
+    error_message = "clumio_token must not be empty."
+  }
 }
 
 variable "clumio_service_account_email" {
   description = "The email of the Clumio service account."
   type        = string
+
+  validation {
+    condition     = can(regex("^[^@]+@[^@]+\\.iam\\.gserviceaccount\\.com$", var.clumio_service_account_email))
+    error_message = "clumio_service_account_email must be a valid GCP service account email (name@project.iam.gserviceaccount.com)."
+  }
 }
 
 variable "customer_service_account_email" {
-  description = "The email of the Customer's service account. If not provided, a service account will be created by this template."
+  description = "The email of the Customer's service account. If not provided, a service account will be created by this template. When provided, it must be a user-managed service account."
   type        = string
   default     = ""
+
+  validation {
+    condition = (
+      var.customer_service_account_email == "" ||
+      can(regex("^[^@]+@[^@]+\\.iam\\.gserviceaccount\\.com$", var.customer_service_account_email))
+    )
+    error_message = "customer_service_account_email must be a user-managed service account email (name@project-id.iam.gserviceaccount.com)."
+  }
 }
 
 variable "is_gcs_enabled" {
@@ -84,7 +111,7 @@ EOT
       can(regex("^projects/[^/[:space:]]+/locations/[^/[:space:]]+/keyRings/[^/[:space:]]+/cryptoKeys/[^/[:space:]]+$", trimspace(r.inventory_bridge_kms_key_name)))
       if trimspace(r.inventory_bridge_kms_key_name) != ""
     ])
-    error_message = "inventory_bridge_kms_key_name must be a fully-qualified Cloud KMS key resource ID with no whitespace (projects/PROJECT/locations/LOCATION/keyRings/RING/cryptoKeys/KEY)."
+    error_message = "inventory_bridge_kms_key_name must be a fully-qualified Cloud KMS key resource ID that does not contain internal whitespace (projects/PROJECT/locations/LOCATION/keyRings/RING/cryptoKeys/KEY)."
   }
 
   validation {
@@ -100,4 +127,107 @@ variable "gcs_inventory_bridge_bucket_labels" {
   description = "Labels to apply to Clumio inventory bridge buckets. Use this for labels required by your organization policies."
   type        = map(string)
   default     = {}
+
+  # Keys: 1-63 chars; lowercase letter or international letter first, then lowercase/international
+  # letters, digits, underscores, and dashes.
+  validation {
+    condition = alltrue([
+      for k, _ in var.gcs_inventory_bridge_bucket_labels :
+      can(regex("^[\\p{Ll}\\p{Lo}][\\p{Ll}\\p{Lo}\\p{N}_-]{0,62}$", k))
+    ])
+    error_message = "Each label key must be 1-63 characters, start with a lowercase or international letter, and contain only lowercase letters, digits, underscores, dashes, and international characters."
+  }
+
+  # Values: may be empty, up to 63 chars, same allowed character set as keys.
+  validation {
+    condition = alltrue([
+      for _, v in var.gcs_inventory_bridge_bucket_labels :
+      can(regex("^[\\p{Ll}\\p{Lo}\\p{N}_-]{0,63}$", v))
+    ])
+    error_message = "Each label value must be at most 63 characters and contain only lowercase letters, digits, underscores, dashes, and international characters."
+  }
+}
+
+# The delta feed's Pub/Sub topic is project-global (one topic per project), so its key is a single
+# top-level input rather than the per-region form used by
+# region_configuration.inventory_bridge_kms_key_name. Google recommends a global key for Pub/Sub
+# topics because Pub/Sub resources are themselves global; a regional key works but introduces
+# cross-region network dependencies for publishers and subscribers.
+variable "delta_topic_kms_key_name" {
+  description = <<EOT
+
+  Optional customer-managed encryption key (CMEK) for the Clumio delta feed Pub/Sub topic.
+
+  Leave empty (default) to use Google-managed encryption. When set, the topic is created with this
+  key and the Pub/Sub service agent is granted cryptoKeyEncrypterDecrypter on it, so the deploying
+  identity must be able to set IAM policy on the key (roles/cloudkms.admin, or any role granting
+  cloudkms.cryptoKeys.setIamPolicy on it) - the same requirement the inventory-bridge keys carry.
+  Required for customers subject to the constraints/gcp.restrictNonCmekServices org policy, which
+  otherwise rejects the topic create. Ignored when is_gcs_enabled is false, since no topic is
+  created.
+
+  The template orders the key grant before the topic, but Cloud KMS IAM can take time to become
+  effective. If the first apply fails the topic create with FAILED_PRECONDITION, re-run
+  terraform apply.
+
+  Rotate by adding a version to this key rather than by naming a different key. Pub/Sub does not
+  re-encrypt messages already published, so replacing the key withdraws the service agent's access
+  to the old one and any message still awaiting delivery under it cannot be read. Clearing this
+  variable after a key has been set has the same effect: new messages revert to Google-managed
+  encryption, but the grant is revoked and anything still retained under the old key becomes
+  unreadable.
+
+EOT
+
+  type    = string
+  default = ""
+
+  validation {
+    condition = (
+      trimspace(var.delta_topic_kms_key_name) == "" ||
+      can(regex("^projects/[^/[:space:]]+/locations/[^/[:space:]]+/keyRings/[^/[:space:]]+/cryptoKeys/[^/[:space:]]+$", trimspace(var.delta_topic_kms_key_name)))
+    )
+    error_message = "delta_topic_kms_key_name must be a fully-qualified Cloud KMS key resource ID that does not contain internal whitespace (projects/PROJECT/locations/LOCATION/keyRings/RING/cryptoKeys/KEY)."
+  }
+}
+
+variable "manage_gcs_iam" {
+  description = <<EOT
+
+  Whether this module manages the Clumio GCS custom IAM roles and their bindings to the customer
+  service account.
+
+  Defaults to true, preserving the module's original behavior. Set to false when the custom roles
+  and role bindings are provisioned outside this module (for example by your own platform tooling),
+  in which case the module creates neither the `google_project_iam_custom_role` resources nor the
+  corresponding IAM bindings. This has no effect unless `is_gcs_enabled` is true.
+
+  Intended to be set once, at onboarding time. Flipping it to false on an existing deployment
+  destroys the roles and bindings on the next apply, and GCP reserves a deleted custom role's id
+  for a soft-delete window, so external tooling cannot immediately recreate the same ids.
+
+EOT
+
+  type    = bool
+  default = true
+}
+
+variable "manage_service_account_impersonation" {
+  description = <<EOT
+
+  Whether this module grants the Clumio service account impersonation of the customer service
+  account, i.e. the `roles/iam.serviceAccountTokenCreator` and `roles/iam.serviceAccountUser`
+  bindings on the customer service account.
+
+  Defaults to true, preserving the module's original behavior. Set to false when these impersonation
+  grants are provisioned outside this module (for example by your own platform tooling).
+
+  Intended to be set once, at onboarding time. Flipping it to false on an existing deployment
+  destroys both grants on the next apply, cutting off Clumio's access to the customer service
+  account until they are recreated externally.
+
+EOT
+
+  type    = bool
+  default = true
 }

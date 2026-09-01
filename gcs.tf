@@ -1,6 +1,7 @@
 locals {
-  # Always update the gcs_version when updating this file
-  gcs_version = "1.12"
+  # Always update the gcs_version when changing this file's resources; comment-only edits do
+  # not bump it.
+  gcs_version = "1.15"
 }
 
 # Enable the Google Cloud Storage API
@@ -14,6 +15,7 @@ resource "google_project_service" "storage_api" {
 }
 
 resource "google_project_service" "storagetransfer" {
+  count   = var.is_gcs_enabled ? 1 : 0
   project = var.project_id
   service = "storagetransfer.googleapis.com"
 
@@ -97,6 +99,7 @@ resource "google_pubsub_topic_iam_member" "cloudasset_service_agent_pubsub_publi
 
 # Enable Storage Insights so Clumio can configure GCS inventory reports.
 resource "google_project_service" "storageinsights" {
+  count   = var.is_gcs_enabled ? 1 : 0
   project = var.project_id
   service = "storageinsights.googleapis.com"
 
@@ -195,15 +198,17 @@ resource "google_storage_bucket" "clumio_inventory_bridge" {
 # CMEK key access for the service agents that read/write the inventory-bridge bucket. These are
 # created only for keys actually referenced by a region (local.inventory_bridge_kms_keys), so they
 # are a no-op when no CMEK is configured. The deploying identity must be able to set IAM policy on
-# the customer's key (e.g. roles/cloudkms.admin or cryptoKeyIamAdmin on the key); if the customer
-# prefers to manage key IAM themselves, they can pre-grant these roles and remove these resources.
+# the customer's key (roles/cloudkms.admin, or any role granting cloudkms.cryptoKeys.setIamPolicy
+# on it). A customer who prefers to manage key IAM themselves can pre-grant these roles and remove
+# these resources.
 
 # Enable the Cloud KMS API on the client project. With user_project_override + billing_project =
 # project_id, both the setIamPolicy calls below and the CMEK bucket create bill KMS usage to
 # project_id, so the API must be enabled there even when the key itself lives in another project.
 # Gated on there being at least one CMEK key so non-CMEK deployments don't enable an unused API.
+# The delta topic key counts here too: a deployment that encrypts only the topic still needs the API.
 resource "google_project_service" "cloudkms" {
-  count   = length(local.inventory_bridge_kms_keys) > 0 ? 1 : 0
+  count   = length(local.inventory_bridge_kms_keys) > 0 || local.delta_topic_cmek_enabled ? 1 : 0
   project = var.project_id
   service = "cloudkms.googleapis.com"
 
@@ -241,10 +246,35 @@ resource "google_kms_crypto_key_iam_member" "inventory_bridge_transfer_agent_cme
   depends_on = [google_project_service.cloudkms]
 }
 
+# CMEK key access for the delta feed topic. Keyed off local.delta_topic_kms_key rather than the
+# per-region bucket keys: the topic is project-global, so it takes a single key of its own.
+
+# The Pub/Sub service agent is not created until the API is first used, so it is materialized
+# explicitly before the key grant below can reference it.
+resource "google_project_service_identity" "pubsub" {
+  provider = google-beta
+  count    = local.delta_topic_cmek_enabled ? 1 : 0
+  project  = var.project_id
+  service  = "pubsub.googleapis.com"
+
+  depends_on = [google_project_service.pubsub]
+}
+
+# Pub/Sub service agent: encrypts and decrypts messages published to the delta topic. Without this
+# grant the topic create is rejected, and publishes fail with FAILED_PRECONDITION.
+resource "google_kms_crypto_key_iam_member" "delta_topic_pubsub_agent_cmek" {
+  count         = local.delta_topic_cmek_enabled ? 1 : 0
+  crypto_key_id = local.delta_topic_kms_key
+  role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+  member        = google_project_service_identity.pubsub[0].member
+
+  depends_on = [google_project_service.cloudkms]
+}
+
 resource "google_project_iam_custom_role" "clumio_gcs_inventory_permission" {
-  count       = var.is_gcs_enabled ? 1 : 0
+  count       = local.manage_gcs_iam ? 1 : 0
   project     = var.project_id
-  role_id     = "GCSInvPermission_${local.sanitized_clumio_token}"
+  role_id     = local.gcs_custom_role_ids.inventory
   title       = "ClumioGCSInventoryPermissions"
   description = "Lists GCS buckets and reads project-wide Cloud Monitoring time series for Clumio inventory"
   permissions = [
@@ -259,16 +289,16 @@ resource "google_project_iam_custom_role" "clumio_gcs_inventory_permission" {
 }
 
 resource "google_project_iam_member" "clumio_gcs_inventory_permission_iam_binding" {
-  count   = var.is_gcs_enabled ? 1 : 0
+  count   = local.manage_gcs_iam ? 1 : 0
   project = var.project_id
   role    = "projects/${var.project_id}/roles/${google_project_iam_custom_role.clumio_gcs_inventory_permission[0].role_id}"
   member  = "serviceAccount:${local.service_account_details.email}"
 }
 
 resource "google_project_iam_custom_role" "clumio_gcs_backup_permission" {
-  count       = var.is_gcs_enabled ? 1 : 0
+  count       = local.manage_gcs_iam ? 1 : 0
   project     = var.project_id
-  role_id     = "GCSBackupPermissions_${local.sanitized_clumio_token}"
+  role_id     = local.gcs_custom_role_ids.backup
   title       = "ClumioGCSBackupPermissions"
   description = "Reads GCS objects and project-wide Cloud Monitoring data and configures buckets for Clumio backup"
   permissions = [
@@ -304,7 +334,7 @@ resource "google_project_iam_custom_role" "clumio_gcs_backup_permission" {
 }
 
 resource "google_project_iam_member" "clumio_gcs_backup_permission_iam_binding" {
-  count   = var.is_gcs_enabled ? 1 : 0
+  count   = local.manage_gcs_iam ? 1 : 0
   project = var.project_id
   role    = "projects/${var.project_id}/roles/${google_project_iam_custom_role.clumio_gcs_backup_permission[0].role_id}"
   member  = "serviceAccount:${local.service_account_details.email}"
@@ -313,9 +343,9 @@ resource "google_project_iam_member" "clumio_gcs_backup_permission_iam_binding" 
 # Read and set IAM policy on the Clumio inventory-bridge bucket only (condition-scoped below), so the
 # service account can grant the Storage Transfer and Storage Insights agents access to it.
 resource "google_project_iam_custom_role" "clumio_gcs_bucket_iam_policy_permission" {
-  count       = var.is_gcs_enabled ? 1 : 0
+  count       = local.manage_gcs_iam ? 1 : 0
   project     = var.project_id
-  role_id     = "GCSBucketIamPolicy_${local.sanitized_clumio_token}"
+  role_id     = local.gcs_custom_role_ids.bucket_iam
   title       = "ClumioGCSBucketIamPolicyPermissions"
   description = "Allow Clumio to read and set bucket IAM policy on the Clumio inventory-bridge bucket only"
   permissions = [
@@ -326,7 +356,7 @@ resource "google_project_iam_custom_role" "clumio_gcs_bucket_iam_policy_permissi
 }
 
 resource "google_project_iam_member" "clumio_gcs_bucket_iam_policy_permission_iam_binding" {
-  count   = var.is_gcs_enabled ? 1 : 0
+  count   = local.manage_gcs_iam ? 1 : 0
   project = var.project_id
   role    = "projects/${var.project_id}/roles/${google_project_iam_custom_role.clumio_gcs_bucket_iam_policy_permission[0].role_id}"
   member  = "serviceAccount:${local.service_account_details.email}"
@@ -339,9 +369,9 @@ resource "google_project_iam_member" "clumio_gcs_bucket_iam_policy_permission_ia
 }
 
 resource "google_project_iam_custom_role" "clumio_gcs_restore_permission" {
-  count       = var.is_gcs_enabled ? 1 : 0
+  count       = local.manage_gcs_iam ? 1 : 0
   project     = var.project_id
-  role_id     = "GCSRestorePermissions_${local.sanitized_clumio_token}"
+  role_id     = local.gcs_custom_role_ids.restore
   title       = "ClumioGCSRestorePermissions"
   description = "Allow write access to GCS objects for Clumio restore"
   permissions = [
@@ -353,16 +383,16 @@ resource "google_project_iam_custom_role" "clumio_gcs_restore_permission" {
 }
 
 resource "google_project_iam_member" "clumio_gcs_restore_permission_iam_binding" {
-  count   = var.is_gcs_enabled ? 1 : 0
+  count   = local.manage_gcs_iam ? 1 : 0
   project = var.project_id
   role    = "projects/${var.project_id}/roles/${google_project_iam_custom_role.clumio_gcs_restore_permission[0].role_id}"
   member  = "serviceAccount:${local.service_account_details.email}"
 }
 
 resource "google_project_iam_custom_role" "clumio_delta_topic_permission" {
-  count       = var.is_gcs_enabled ? 1 : 0
+  count       = local.manage_gcs_iam ? 1 : 0
   project     = var.project_id
-  role_id     = "DeltaTopicPermission_${local.sanitized_clumio_token}"
+  role_id     = local.gcs_custom_role_ids.delta_topic
   title       = "ClumioDeltaTopicPermissions"
   description = "Allow exact customer delta topic IAM management for Clumio delta ingestion"
   permissions = [
@@ -374,7 +404,7 @@ resource "google_project_iam_custom_role" "clumio_delta_topic_permission" {
 }
 
 resource "google_pubsub_topic_iam_member" "clumio_delta_topic_permission_iam_binding" {
-  count   = var.is_gcs_enabled ? 1 : 0
+  count   = local.manage_gcs_iam ? 1 : 0
   project = var.project_id
   topic   = google_pubsub_topic.customer_delta[0].name
   role    = "projects/${var.project_id}/roles/${google_project_iam_custom_role.clumio_delta_topic_permission[0].role_id}"
