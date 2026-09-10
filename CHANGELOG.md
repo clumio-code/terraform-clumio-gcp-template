@@ -1,3 +1,10 @@
+## 0.10.0
+
+- Added the `goog-partner-solution` default label to the Google providers for GCP Marketplace consumption tracking.
+- Granted the Storage Insights and Storage Transfer service agents bucket-level access to the inventory bridge buckets at create time. Removed the `ClumioGCSBucketIamPolicyPermissions` custom role.
+- Replaced the `ClumioDeltaTopicPermissions` custom role with `roles/pubsub.subscriber` on the delta topic, granted to the Clumio service account.
+- Bumped the config template version to `2.10` and the GCS template version to `1.17`.
+
 ## 0.9.0
 
 - Added optional customer-managed encryption key (CMEK) support for the Clumio delta feed Pub/Sub topic via the new `delta_topic_kms_key_name` variable. The template grants the Pub/Sub service agent access to the key.

@@ -1,7 +1,7 @@
 locals {
   # Always update the gcs_version when changing this file's resources; comment-only edits do
   # not bump it.
-  gcs_version = "1.15"
+  gcs_version = "1.17"
 }
 
 # Enable the Google Cloud Storage API
@@ -195,6 +195,53 @@ resource "google_storage_bucket" "clumio_inventory_bridge" {
   ]
 }
 
+# Bucket-level access the inventory pipeline needs on the inventory-bridge bucket, granted here at
+# create time so no Clumio identity has to manage this bucket's IAM policy at run time. Declared as
+# google_storage_bucket_iam_member (additive) rather than an authoritative binding or policy, which
+# would drop bindings this template does not manage. Covers both the buckets this template creates
+# and customer-supplied ones, deduplicated so a bucket shared by two regions is granted once. A
+# customer-supplied bucket is referenced only by name, so these depend on the Storage API enable
+# explicitly rather than reaching it through the bucket resource.
+#
+# For a bucket supplied through using_custom_inventory_bridge_bucket, the identity applying this
+# template must be able to set IAM policy on that bucket (roles/storage.admin, or any role granting
+# storage.buckets.setIamPolicy on it), because these grants are applied to it like any other.
+# Reference:
+# https://docs.cloud.google.com/storage-transfer/docs/cross-bucket-replication#get-required-roles
+
+# 1) Storage Insights service agent: writes the inventory report objects into the bucket.
+resource "google_storage_bucket_iam_member" "inventory_bridge_insights_agent_object_creator" {
+  for_each = local.inventory_bridge_bucket_grant_targets
+  bucket   = each.value
+  role     = "roles/storage.objectCreator"
+  member   = google_project_service_identity.storageinsights[0].member
+
+  depends_on = [google_project_service.storage_api]
+}
+
+# 2) Storage Transfer service agent: reads the reports back out during inventory replication.
+resource "google_storage_bucket_iam_member" "inventory_bridge_transfer_agent_object_viewer" {
+  for_each = local.inventory_bridge_bucket_grant_targets
+  bucket   = each.value
+  role     = "roles/storage.objectViewer"
+  member   = data.google_storage_transfer_project_service_account.storagetransfer[0].member
+
+  depends_on = [google_project_service.storage_api]
+}
+
+# 3) Storage Transfer service agent: replication updates the source bucket's metadata, so the agent
+#    needs storage.buckets.update there. The read-only legacy roles do not carry it, which is why
+#    the reference above pairs legacyBucketOwner with objectViewer for a replication source (the
+#    destination takes the narrower legacyBucketWriter instead).
+resource "google_storage_bucket_iam_member" "inventory_bridge_transfer_agent_bucket_owner" {
+  for_each = local.inventory_bridge_bucket_grant_targets
+  bucket   = each.value
+  role     = "roles/storage.legacyBucketOwner"
+  member   = data.google_storage_transfer_project_service_account.storagetransfer[0].member
+
+  depends_on = [google_project_service.storage_api]
+}
+
 # CMEK key access for the service agents that read/write the inventory-bridge bucket. These are
 # created only for keys actually referenced by a region (local.inventory_bridge_kms_keys), so they
 # are a no-op when no CMEK is configured. The deploying identity must be able to set IAM policy on
@@ -340,34 +387,6 @@ resource "google_project_iam_member" "clumio_gcs_backup_permission_iam_binding" 
   member  = "serviceAccount:${local.service_account_details.email}"
 }
 
-# Read and set IAM policy on the Clumio inventory-bridge bucket only (condition-scoped below), so the
-# service account can grant the Storage Transfer and Storage Insights agents access to it.
-resource "google_project_iam_custom_role" "clumio_gcs_bucket_iam_policy_permission" {
-  count       = local.manage_gcs_iam ? 1 : 0
-  project     = var.project_id
-  role_id     = local.gcs_custom_role_ids.bucket_iam
-  title       = "ClumioGCSBucketIamPolicyPermissions"
-  description = "Allow Clumio to read and set bucket IAM policy on the Clumio inventory-bridge bucket only"
-  permissions = [
-    "storage.buckets.getIamPolicy",
-    "storage.buckets.setIamPolicy",
-  ]
-  stage = "GA"
-}
-
-resource "google_project_iam_member" "clumio_gcs_bucket_iam_policy_permission_iam_binding" {
-  count   = local.manage_gcs_iam ? 1 : 0
-  project = var.project_id
-  role    = "projects/${var.project_id}/roles/${google_project_iam_custom_role.clumio_gcs_bucket_iam_policy_permission[0].role_id}"
-  member  = "serviceAccount:${local.service_account_details.email}"
-
-  condition {
-    title       = "clumio_inventory_bridge_buckets_only"
-    description = "Restrict bucket IAM policy management to Clumio-created and customer-provided inventory-bridge buckets"
-    expression  = "resource.type == \"storage.googleapis.com/Bucket\" && (${local.inventory_bridge_bucket_iam_resource_expression})"
-  }
-}
-
 resource "google_project_iam_custom_role" "clumio_gcs_restore_permission" {
   count       = local.manage_gcs_iam ? 1 : 0
   project     = var.project_id
@@ -389,24 +408,13 @@ resource "google_project_iam_member" "clumio_gcs_restore_permission_iam_binding"
   member  = "serviceAccount:${local.service_account_details.email}"
 }
 
-resource "google_project_iam_custom_role" "clumio_delta_topic_permission" {
-  count       = local.manage_gcs_iam ? 1 : 0
-  project     = var.project_id
-  role_id     = local.gcs_custom_role_ids.delta_topic
-  title       = "ClumioDeltaTopicPermissions"
-  description = "Allow exact customer delta topic IAM management for Clumio delta ingestion"
-  permissions = [
-    "pubsub.topics.get",
-    "pubsub.topics.getIamPolicy",
-    "pubsub.topics.setIamPolicy",
-  ]
-  stage = "GA"
-}
-
-resource "google_pubsub_topic_iam_member" "clumio_delta_topic_permission_iam_binding" {
-  count   = local.manage_gcs_iam ? 1 : 0
+# Let Clumio attach its change-feed subscription to the delta topic created above.
+# roles/pubsub.subscriber on this one topic conveys pubsub.topics.attachSubscription
+# and nothing that can read or change IAM policy.
+resource "google_pubsub_topic_iam_member" "clumio_bridge_delta_topic_subscriber" {
+  count   = var.is_gcs_enabled ? 1 : 0
   project = var.project_id
   topic   = google_pubsub_topic.customer_delta[0].name
-  role    = "projects/${var.project_id}/roles/${google_project_iam_custom_role.clumio_delta_topic_permission[0].role_id}"
-  member  = "serviceAccount:${local.service_account_details.email}"
+  role    = "roles/pubsub.subscriber"
+  member  = "serviceAccount:${var.clumio_service_account_email}"
 }
