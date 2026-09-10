@@ -2,12 +2,20 @@ provider "google" {
   project               = var.project_id
   billing_project       = var.project_id
   user_project_override = true
+
+  default_labels = {
+    "goog-partner-solution" = local.partner_solution_urn
+  }
 }
 
 provider "google-beta" {
   project               = var.project_id
   billing_project       = var.project_id
   user_project_override = true
+
+  default_labels = {
+    "goog-partner-solution" = local.partner_solution_urn
+  }
 }
 
 data "google_project" "current" {
@@ -29,7 +37,9 @@ locals {
   clumio_inventory_bridge_token_hash = substr(sha256(local.sanitized_clumio_token), 0, 12)
   # Always update the config_version when changing this file's resources; comment-only edits do
   # not bump it.
-  config_version = "2.7"
+  config_version = "2.10"
+  # GCP Marketplace consumption tracking label, required on the customer project resources we create.
+  partner_solution_urn = "isol_plb32_0014m00001h36koqaq_shblifz2o2wmkt4vgrzqshobfivee3t2"
   # The template will create a SA if customer has not provided one
   create_service_account = length(var.customer_service_account_email) == 0
   # Points to customer provided SA if provided, else points to the SA created by this template
@@ -64,18 +74,35 @@ locals {
   # is_gcs_enabled = false neither grants the Pub/Sub agent access nor enables the Cloud KMS API.
   delta_topic_cmek_enabled = var.is_gcs_enabled && local.delta_topic_kms_key != ""
 
-  # Customer-provided inventory bridge bucket names (used to scope IAM policy management in gcs.tf).
-  custom_inventory_bridge_bucket_names = [
-    for r in var.region_configuration : r.using_custom_inventory_bridge_bucket
-    if trimspace(r.using_custom_inventory_bridge_bucket) != ""
-  ]
+  # Every inventory-bridge bucket, keyed by region, whether created by this template or supplied
+  # by the customer. Read by the bucket-level agent grants in gcs.tf and by the region
+  # configuration reported to the post-process callback below, so both always name the same
+  # bucket. Buckets this template creates are referenced by resource attribute rather than a
+  # rebuilt name string, so the graph orders bucket-create before those grants. Empty when GCS
+  # is disabled, in which case no grant is created and no region configuration is reported.
+  all_inventory_bridge_buckets = var.is_gcs_enabled ? {
+    for r in var.region_configuration : r.region => (
+      trimspace(r.using_custom_inventory_bridge_bucket) == ""
+      ? google_storage_bucket.clumio_inventory_bridge[r.region].name
+      : trimspace(r.using_custom_inventory_bridge_bucket)
+    )
+  } : {}
 
-  # CEL resource matcher for the bucket IAM policy permission: allow Clumio-created buckets
-  # (matched by name prefix) plus any customer-provided buckets (matched by exact name).
-  inventory_bridge_bucket_iam_resource_expression = join(" || ", concat(
-    ["resource.name.startsWith(\"projects/_/buckets/clumio-inventory-bridge-\")"],
-    [for name in local.custom_inventory_bridge_bucket_names : "resource.name == \"projects/_/buckets/${name}\""],
-  ))
+  # The same buckets re-keyed for the bucket-level grants in gcs.tf, because for_each needs its key
+  # set known at plan time and a bucket NAME is not: a Clumio-created name derives from the
+  # connection token, which is only known once the connection exists. So a Clumio-created bucket is
+  # keyed by its region -- its name embeds the region, so two regions cannot collide -- and a
+  # customer-supplied bucket is keyed by its own name, so two regions naming the same bucket
+  # collapse to a single grant instead of racing two identical ones. merge keeps one entry per key,
+  # and the prefixes stop a region label from ever colliding with a bucket name.
+  inventory_bridge_bucket_grant_targets = var.is_gcs_enabled ? merge([
+    for r in var.region_configuration : {
+      (trimspace(r.using_custom_inventory_bridge_bucket) == ""
+        ? "region/${r.region}"
+        : "bucket/${trimspace(r.using_custom_inventory_bridge_bucket)}"
+      ) = local.all_inventory_bridge_buckets[r.region]
+    }
+  ]...) : {}
 
   # Whether the module manages the GCS custom roles and their bindings. They are gated on GCS being
   # enabled; when manage_gcs_iam is false they are provisioned outside this module.
@@ -86,11 +113,9 @@ locals {
   # than through these: a local carries no dependency edge, and a binding must not be applied
   # before its role exists.
   gcs_custom_role_ids = {
-    inventory   = "GCSInvPermission_${local.sanitized_clumio_token}"
-    backup      = "GCSBackupPermissions_${local.sanitized_clumio_token}"
-    bucket_iam  = "GCSBucketIamPolicy_${local.sanitized_clumio_token}"
-    restore     = "GCSRestorePermissions_${local.sanitized_clumio_token}"
-    delta_topic = "DeltaTopicPermission_${local.sanitized_clumio_token}"
+    inventory = "GCSInvPermission_${local.sanitized_clumio_token}"
+    backup    = "GCSBackupPermissions_${local.sanitized_clumio_token}"
+    restore   = "GCSRestorePermissions_${local.sanitized_clumio_token}"
   }
 }
 
@@ -140,13 +165,10 @@ resource "clumio_post_process_gcp_connection" "post_process" {
     google_project_service.monitoring_api,
     google_project_service.storage_api,
     google_project_iam_custom_role.clumio_gcs_backup_permission,
-    google_project_iam_custom_role.clumio_gcs_bucket_iam_policy_permission,
-    google_project_iam_custom_role.clumio_delta_topic_permission,
     google_project_iam_custom_role.clumio_gcs_inventory_permission,
     google_project_iam_custom_role.clumio_gcs_restore_permission,
     google_project_iam_member.clumio_gcs_backup_permission_iam_binding,
-    google_project_iam_member.clumio_gcs_bucket_iam_policy_permission_iam_binding,
-    google_pubsub_topic_iam_member.clumio_delta_topic_permission_iam_binding,
+    google_pubsub_topic_iam_member.clumio_bridge_delta_topic_subscriber,
     google_project_iam_member.clumio_gcs_inventory_permission_iam_binding,
     google_project_iam_member.clumio_gcs_restore_permission_iam_binding,
     google_pubsub_topic_iam_member.cloudasset_service_agent_pubsub_publisher,
@@ -163,6 +185,11 @@ resource "clumio_post_process_gcp_connection" "post_process" {
     google_kms_crypto_key_iam_member.delta_topic_pubsub_agent_cmek,
     google_project_service.cloudasset,
     google_storage_bucket.clumio_inventory_bridge,
+    # Bucket-level agent grants must land before the callback so the first inventory-report write /
+    # replication job does not race ahead of them.
+    google_storage_bucket_iam_member.inventory_bridge_insights_agent_object_creator,
+    google_storage_bucket_iam_member.inventory_bridge_transfer_agent_object_viewer,
+    google_storage_bucket_iam_member.inventory_bridge_transfer_agent_bucket_owner,
     google_pubsub_topic.customer_delta,
     google_cloud_asset_project_feed.customer_delta,
     google_service_account_iam_member.allow_token_creator,
@@ -178,19 +205,12 @@ resource "clumio_post_process_gcp_connection" "post_process" {
   config_version        = local.config_version
   protect_gcs_version   = local.gcs_version
   regions               = [for r in var.region_configuration : r.region]
-  # When GCS is disabled there are no inventory bridge buckets, so emit no region
-  # configuration at all. When enabled, use the Clumio-created bucket where no custom
-  # bucket was provided, else pass through the customer-provided bucket name. Gating the
-  # whole list on is_gcs_enabled keeps the created-bucket reference in lock-step with
-  # regions_to_create_clumio_inventory_bridge_bucket (is_gcs_enabled && custom == ""),
-  # so a non-created bucket is never referenced.
+  # When GCS is disabled there are no inventory bridge buckets, so emit no region configuration
+  # at all. Kept as a list over var.region_configuration rather than a comprehension over the
+  # local so the reported order matches the regions list above.
   region_configuration = var.is_gcs_enabled ? [for r in var.region_configuration : {
-    region = r.region
-    inventory_bridge_bucket_name = (
-      trimspace(r.using_custom_inventory_bridge_bucket) == ""
-      ? google_storage_bucket.clumio_inventory_bridge[r.region].name
-      : r.using_custom_inventory_bridge_bucket
-    )
+    region                       = r.region
+    inventory_bridge_bucket_name = local.all_inventory_bridge_buckets[r.region]
   }] : []
   properties = var.is_gcs_enabled ? {
     customer_delta_topic_id = google_pubsub_topic.customer_delta[0].id,
