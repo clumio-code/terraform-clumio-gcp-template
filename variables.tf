@@ -231,3 +231,49 @@ EOT
   type    = bool
   default = true
 }
+
+variable "manage_api_enablement" {
+  description = <<EOT
+
+  Whether this module enables the Google APIs required for Clumio GCS backup on the project
+  (Cloud Storage, Storage Transfer, Pub/Sub, Cloud Asset, Storage Insights, and Monitoring; and
+  Cloud KMS when a CMEK key is configured for an inventory-bridge bucket or the delta topic).
+
+  Defaults to true, preserving the module's original behavior. Set to false when these APIs are
+  enabled outside this module (for example by your own platform tooling), in which case the module
+  creates no `google_project_service` resources for them. This has no effect unless `is_gcs_enabled`
+  is true.
+
+  Intended to be set once, at onboarding time. Flipping it to false on an existing deployment
+  disables the APIs on the next apply, which breaks the resources that depend on them being
+  enabled.
+
+EOT
+
+  type    = bool
+  default = true
+}
+
+variable "manage_service_agent_bindings" {
+  description = <<EOT
+
+  Whether this module materializes the Google-managed service identities/agents (Cloud Asset,
+  Storage Insights, and, when a delta-topic CMEK key is configured, Pub/Sub) and binds the IAM
+  roles and bucket-level grants those agents need for GCS backup (Storage Transfer, Cloud Storage,
+  Cloud Asset, and Storage Insights agents), including the CMEK key grants to those agents.
+
+  Defaults to true, preserving the module's original behavior. Set to false when the service agents
+  and their role bindings are provisioned outside this module (for example by your own platform
+  tooling), in which case the module creates neither the `google_project_service_identity` resources,
+  the service-agent IAM bindings, nor the agent CMEK grants. This has no effect unless
+  `is_gcs_enabled` is true.
+
+  Intended to be set once, at onboarding time. Flipping it to false on an existing deployment
+  destroys the service-agent bindings and CMEK grants on the next apply, until they are recreated
+  externally.
+
+EOT
+
+  type    = bool
+  default = true
+}

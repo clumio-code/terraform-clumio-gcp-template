@@ -1,3 +1,7 @@
+## Unreleased
+
+- Added optional `manage_api_enablement` and `manage_service_agent_bindings` inputs (default `true`, no behavior change). Set either to `false` to let external platform tooling own Google API enablement and/or the GCS service agents and their role, bucket-level, and CMEK bindings instead of this module.
+
 ## 0.10.0
 
 - Added the `goog-partner-solution` default label to the Google providers for GCP Marketplace consumption tracking.

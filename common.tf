@@ -117,6 +117,19 @@ locals {
     backup    = "GCSBackupPermissions_${local.sanitized_clumio_token}"
     restore   = "GCSRestorePermissions_${local.sanitized_clumio_token}"
   }
+
+  # Whether the module enables the Google APIs required for GCS backup on the project. Gated on GCS
+  # being enabled; when manage_api_enablement is false the APIs are enabled outside this module (for
+  # example by platform tooling) and the module creates no google_project_service resources for them.
+  manage_api_enablement = var.is_gcs_enabled && var.manage_api_enablement
+
+  # Whether the module materializes the Google-managed service identities/agents and binds the roles
+  # and bucket-level grants they need (Storage Transfer, Cloud Storage, Cloud Asset, Storage
+  # Insights, and Pub/Sub), including the CMEK key grants to those agents. Gated on GCS being
+  # enabled; when manage_service_agent_bindings is false these are provisioned outside this module
+  # and the module creates neither the service-identity resources, the agent IAM bindings, nor the
+  # agent CMEK grants.
+  manage_service_agent_bindings = var.is_gcs_enabled && var.manage_service_agent_bindings
 }
 
 resource "google_service_account" "clumio_created_sa" {
