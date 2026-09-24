@@ -1,3 +1,12 @@
+## 0.11.0
+
+- Added a 60-second wait for new service agents to propagate in IAM before the template grants them roles. This adds the `hashicorp/time` provider.
+- Set `protect_gcs_version` to empty when `is_gcs_enabled` is false.
+- Changed the `region_configuration` validation to require the GCP region format, for example `us-central1`.
+- Documented that you must empty a template-created inventory bridge bucket before you disable GCS, remove a region, or switch a region to a custom bucket.
+- Documented the grants that the template applies to a custom inventory bridge bucket.
+- Bumped the config template version to `2.11` and the GCS template version to `1.18`.
+
 ## 0.10.0
 
 - Added the `goog-partner-solution` default label to the Google providers for GCP Marketplace consumption tracking.

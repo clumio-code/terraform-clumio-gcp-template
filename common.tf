@@ -37,7 +37,7 @@ locals {
   clumio_inventory_bridge_token_hash = substr(sha256(local.sanitized_clumio_token), 0, 12)
   # Always update the config_version when changing this file's resources; comment-only edits do
   # not bump it.
-  config_version = "2.10"
+  config_version = "2.11"
   # GCP Marketplace consumption tracking label, required on the customer project resources we create.
   partner_solution_urn = "isol_plb32_0014m00001h36koqaq_shblifz2o2wmkt4vgrzqshobfivee3t2"
   # The template will create a SA if customer has not provided one
@@ -203,8 +203,9 @@ resource "clumio_post_process_gcp_connection" "post_process" {
   token                 = var.clumio_token
   service_account_email = local.service_account_details.email
   config_version        = local.config_version
-  protect_gcs_version   = local.gcs_version
-  regions               = [for r in var.region_configuration : r.region]
+  # An empty version is the provider's "asset not installed" signal.
+  protect_gcs_version = var.is_gcs_enabled ? local.gcs_version : ""
+  regions             = [for r in var.region_configuration : r.region]
   # When GCS is disabled there are no inventory bridge buckets, so emit no region configuration
   # at all. Kept as a list over var.region_configuration rather than a comprehension over the
   # local so the reported order matches the regions list above.
