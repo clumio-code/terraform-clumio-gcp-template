@@ -47,7 +47,11 @@ variable "customer_service_account_email" {
 }
 
 variable "is_gcs_enabled" {
-  description = "Flag to indicate if Clumio Protect for GCS is enabled"
+  description = <<EOT
+  Flag to indicate if Clumio Protect for GCS is enabled.
+  Before disabling GCS, empty every template-created inventory bridge bucket; Terraform cannot
+  delete a non-empty bucket.
+EOT
   type        = bool
   default     = false
 }
@@ -61,6 +65,19 @@ variable "region_configuration" {
   Leave using_custom_inventory_bridge_bucket empty (default) to have Clumio create the inventory bridge
   bucket. Set it to the name of an existing bucket to have Clumio use that bucket instead; in that case no
   bucket is created for the region.
+
+  Removing a region or switching it to a custom bucket destroys any template-created inventory bridge
+  bucket for that region. Empty that bucket before applying the change.
+
+  A custom bucket is granted to Clumio's inventory pipeline exactly like one this template creates:
+  the Storage Insights agent receives roles/storage.objectCreator on it, and the Storage Transfer
+  agent receives roles/storage.objectViewer and roles/storage.legacyBucketOwner. legacyBucketOwner
+  also carries the ability to read and set that bucket's IAM policy. Point this at a bucket holding
+  unrelated data only if those grants are acceptable there.
+
+  Because the template applies those grants itself, the identity running terraform apply must hold
+  storage.buckets.setIamPolicy on the custom bucket (roles/storage.admin, or any role granting it) -
+  the same requirement delta_topic_kms_key_name carries for a customer-managed key.
 
 EOT
 
@@ -84,14 +101,17 @@ EOT
 
   validation {
     condition = alltrue([
-      for r in var.region_configuration : trimspace(r.region) != ""
+      for r in var.region_configuration : can(regex("^[a-z]+-[a-z]+[0-9]+$", r.region))
     ])
-    error_message = "Each region must have a non-empty region value."
+    error_message = "Each region must use GCP region format like us-central1."
   }
 
+  # Compared on the raw labels rather than trimmed ones. That is deliberate, not an omission: the
+  # format validation above already rejects any label carrying whitespace, so " us-central1" can
+  # never reach here and slip past as a distinct duplicate. Relaxing that regex re-opens this.
   validation {
     condition = length(var.region_configuration) == length(distinct([
-      for r in var.region_configuration : trimspace(r.region)
+      for r in var.region_configuration : r.region
     ]))
     error_message = "Each region must be unique."
   }
