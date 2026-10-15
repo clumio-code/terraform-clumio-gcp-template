@@ -1,3 +1,7 @@
+## Unreleased
+
+- Added optional `manage_api_enablement` and `manage_service_agent_bindings` inputs (default `true`, no behavior change). Set either to `false` to let external platform tooling own Google API enablement and/or the GCS service agents and their project-level role bindings instead of this module. The template still applies the delta topic, inventory bridge bucket, and CMEK key grants to the agents.
+
 ## 0.11.0
 
 - Added a 60-second wait for new service agents to propagate in IAM before the template grants them roles. This adds the `hashicorp/time` provider.

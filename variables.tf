@@ -251,3 +251,54 @@ EOT
   type    = bool
   default = true
 }
+
+variable "manage_api_enablement" {
+  description = <<EOT
+
+  Whether this module enables the Google APIs required for Clumio GCS backup on the project
+  (Cloud Storage, Storage Transfer, Pub/Sub, Cloud Asset, Storage Insights, and Monitoring; and
+  Cloud KMS when a CMEK key is configured for an inventory-bridge bucket or the delta topic).
+
+  Defaults to true, preserving the module's original behavior. Set to false when these APIs are
+  enabled outside this module (for example by your own platform tooling), in which case the module
+  creates no `google_project_service` resources for them. This has no effect unless `is_gcs_enabled`
+  is true.
+
+  Flipping it to false on an existing deployment does not disable the APIs. Every
+  `google_project_service` resource in this module sets `disable_on_destroy = false`, so the next
+  apply removes them from the Terraform state and leaves the APIs enabled. From then on, Terraform
+  stops managing them, and you must keep them enabled outside this module.
+
+EOT
+
+  type    = bool
+  default = true
+}
+
+variable "manage_service_agent_bindings" {
+  description = <<EOT
+
+  Whether this module materializes the Google-managed service agents (Cloud Asset, Storage
+  Insights, Storage Transfer, Cloud Storage, and, when a delta-topic CMEK key is configured,
+  Pub/Sub) and binds their project-level IAM roles (roles/storagetransfer.serviceAgent,
+  roles/pubsub.publisher for the Cloud Storage agent, and roles/storage.insightsCollectorService).
+
+  Defaults to true, preserving the module's original behavior. Set to false when the service agents
+  and their project-level role bindings are provisioned outside this module (for example by your
+  own platform tooling). This has no effect unless `is_gcs_enabled` is true.
+
+  The module always applies the grants that are scoped to a resource it creates or is configured
+  with, because only the module knows those resources: publish on the delta topic for the Cloud
+  Asset agent, the inventory bridge bucket grants, and the CMEK key grants. When this is false, the
+  module derives the agent emails from the project number, so the agents must already exist before
+  you apply.
+
+  Flipping it to false on an existing deployment destroys the project-level bindings on the next
+  apply, until they are recreated externally. The service agents and the resource-scoped grants
+  stay in place.
+
+EOT
+
+  type    = bool
+  default = true
+}
