@@ -123,13 +123,18 @@ locals {
   # example by platform tooling) and the module creates no google_project_service resources for them.
   manage_api_enablement = var.is_gcs_enabled && var.manage_api_enablement
 
-  # Whether the module materializes the Google-managed service identities/agents and binds the roles
-  # and bucket-level grants they need (Storage Transfer, Cloud Storage, Cloud Asset, Storage
-  # Insights, and Pub/Sub), including the CMEK key grants to those agents. Gated on GCS being
-  # enabled; when manage_service_agent_bindings is false these are provisioned outside this module
-  # and the module creates neither the service-identity resources, the agent IAM bindings, nor the
-  # agent CMEK grants.
+  # Whether the module materializes the Google-managed service identities/agents and binds their
+  # project-level roles. Gated on GCS being enabled; when manage_service_agent_bindings is false these
+  # are provisioned outside this module.
   manage_service_agent_bindings = var.is_gcs_enabled && var.manage_service_agent_bindings
+
+  service_agent_members = {
+    cloudasset      = local.manage_service_agent_bindings ? one(google_project_service_identity.cloudasset[*].member) : "serviceAccount:service-${data.google_project.current.number}@gcp-sa-cloudasset.iam.gserviceaccount.com"
+    storageinsights = local.manage_service_agent_bindings ? one(google_project_service_identity.storageinsights[*].member) : "serviceAccount:service-${data.google_project.current.number}@gcp-sa-storageinsights.iam.gserviceaccount.com"
+    pubsub          = local.manage_service_agent_bindings ? one(google_project_service_identity.pubsub[*].member) : "serviceAccount:service-${data.google_project.current.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
+    storagetransfer = local.manage_service_agent_bindings ? one(data.google_storage_transfer_project_service_account.storagetransfer[*].member) : "serviceAccount:project-${data.google_project.current.number}@storage-transfer-service.iam.gserviceaccount.com"
+    gcs             = local.manage_service_agent_bindings ? one(data.google_storage_project_service_account.gcs[*].member) : "serviceAccount:service-${data.google_project.current.number}@gs-project-accounts.iam.gserviceaccount.com"
+  }
 }
 
 resource "google_service_account" "clumio_created_sa" {

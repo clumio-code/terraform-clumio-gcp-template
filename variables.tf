@@ -264,9 +264,10 @@ variable "manage_api_enablement" {
   creates no `google_project_service` resources for them. This has no effect unless `is_gcs_enabled`
   is true.
 
-  Intended to be set once, at onboarding time. Flipping it to false on an existing deployment
-  disables the APIs on the next apply, which breaks the resources that depend on them being
-  enabled.
+  Flipping it to false on an existing deployment does not disable the APIs. Every
+  `google_project_service` resource in this module sets `disable_on_destroy = false`, so the next
+  apply removes them from the Terraform state and leaves the APIs enabled. From then on, Terraform
+  stops managing them, and you must keep them enabled outside this module.
 
 EOT
 
@@ -277,20 +278,24 @@ EOT
 variable "manage_service_agent_bindings" {
   description = <<EOT
 
-  Whether this module materializes the Google-managed service identities/agents (Cloud Asset,
-  Storage Insights, and, when a delta-topic CMEK key is configured, Pub/Sub) and binds the IAM
-  roles and bucket-level grants those agents need for GCS backup (Storage Transfer, Cloud Storage,
-  Cloud Asset, and Storage Insights agents), including the CMEK key grants to those agents.
+  Whether this module materializes the Google-managed service agents (Cloud Asset, Storage
+  Insights, Storage Transfer, Cloud Storage, and, when a delta-topic CMEK key is configured,
+  Pub/Sub) and binds their project-level IAM roles (roles/storagetransfer.serviceAgent,
+  roles/pubsub.publisher for the Cloud Storage agent, and roles/storage.insightsCollectorService).
 
   Defaults to true, preserving the module's original behavior. Set to false when the service agents
-  and their role bindings are provisioned outside this module (for example by your own platform
-  tooling), in which case the module creates neither the `google_project_service_identity` resources,
-  the service-agent IAM bindings, nor the agent CMEK grants. This has no effect unless
-  `is_gcs_enabled` is true.
+  and their project-level role bindings are provisioned outside this module (for example by your
+  own platform tooling). This has no effect unless `is_gcs_enabled` is true.
 
-  Intended to be set once, at onboarding time. Flipping it to false on an existing deployment
-  destroys the service-agent bindings and CMEK grants on the next apply, until they are recreated
-  externally.
+  The module always applies the grants that are scoped to a resource it creates or is configured
+  with, because only the module knows those resources: publish on the delta topic for the Cloud
+  Asset agent, the inventory bridge bucket grants, and the CMEK key grants. When this is false, the
+  module derives the agent emails from the project number, so the agents must already exist before
+  you apply.
+
+  Flipping it to false on an existing deployment destroys the project-level bindings on the next
+  apply, until they are recreated externally. The service agents and the resource-scoped grants
+  stay in place.
 
 EOT
 

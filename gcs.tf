@@ -62,7 +62,7 @@ resource "google_project_service_identity" "cloudasset" {
 # this version ships creates it and waits once; every apply after that plans no change here and
 # waits not at all.
 resource "time_sleep" "service_identity_propagation" {
-  count = var.is_gcs_enabled ? 1 : 0
+  count = local.manage_service_agent_bindings ? 1 : 0
 
   # Reading .member off all five agents is itself what orders the sleep after them, so no
   # depends_on is needed. .member rather than .email because the two data sources spell that
@@ -126,11 +126,11 @@ resource "google_project_iam_member" "storage_service_agent_pubsub_publisher" {
 # The Clumio delta feed publishes only to this topic, so the Cloud Asset agent is granted publish
 # on the topic rather than project-wide.
 resource "google_pubsub_topic_iam_member" "cloudasset_service_agent_pubsub_publisher" {
-  count   = local.manage_service_agent_bindings ? 1 : 0
+  count   = var.is_gcs_enabled ? 1 : 0
   project = var.project_id
   topic   = google_pubsub_topic.customer_delta[0].name
   role    = "roles/pubsub.publisher"
-  member  = google_project_service_identity.cloudasset[0].member
+  member  = local.service_agent_members.cloudasset
 
   depends_on = [time_sleep.service_identity_propagation]
 }
@@ -253,20 +253,20 @@ resource "google_storage_bucket" "clumio_inventory_bridge" {
 
 # 1) Storage Insights service agent: writes the inventory report objects into the bucket.
 resource "google_storage_bucket_iam_member" "inventory_bridge_insights_agent_object_creator" {
-  for_each = local.manage_service_agent_bindings ? local.inventory_bridge_bucket_grant_targets : {}
+  for_each = local.inventory_bridge_bucket_grant_targets
   bucket   = each.value
   role     = "roles/storage.objectCreator"
-  member   = google_project_service_identity.storageinsights[0].member
+  member   = local.service_agent_members.storageinsights
 
   depends_on = [google_project_service.storage_api, time_sleep.service_identity_propagation]
 }
 
 # 2) Storage Transfer service agent: reads the reports back out during inventory replication.
 resource "google_storage_bucket_iam_member" "inventory_bridge_transfer_agent_object_viewer" {
-  for_each = local.manage_service_agent_bindings ? local.inventory_bridge_bucket_grant_targets : {}
+  for_each = local.inventory_bridge_bucket_grant_targets
   bucket   = each.value
   role     = "roles/storage.objectViewer"
-  member   = data.google_storage_transfer_project_service_account.storagetransfer[0].member
+  member   = local.service_agent_members.storagetransfer
 
   depends_on = [google_project_service.storage_api, time_sleep.service_identity_propagation]
 }
@@ -282,10 +282,10 @@ resource "google_storage_bucket_iam_member" "inventory_bridge_transfer_agent_obj
 #    account (project-scoped) onto a Google-managed agent scoped to this bucket. Google documents
 #    this predefined role for a replication source; a narrower custom role would be off that path.
 resource "google_storage_bucket_iam_member" "inventory_bridge_transfer_agent_bucket_owner" {
-  for_each = local.manage_service_agent_bindings ? local.inventory_bridge_bucket_grant_targets : {}
+  for_each = local.inventory_bridge_bucket_grant_targets
   bucket   = each.value
   role     = "roles/storage.legacyBucketOwner"
-  member   = data.google_storage_transfer_project_service_account.storagetransfer[0].member
+  member   = local.service_agent_members.storagetransfer
 
   depends_on = [google_project_service.storage_api, time_sleep.service_identity_propagation]
 }
@@ -313,30 +313,30 @@ resource "google_project_service" "cloudkms" {
 # 1) Cloud Storage service agent: performs encrypt/decrypt of objects using the bucket default key.
 #    This grant is mandatory - without it a bucket create with default_kms_key_name is rejected.
 resource "google_kms_crypto_key_iam_member" "inventory_bridge_gcs_agent_cmek" {
-  for_each      = local.manage_service_agent_bindings ? local.inventory_bridge_kms_keys : toset([])
+  for_each      = local.inventory_bridge_kms_keys
   crypto_key_id = each.value
   role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
-  member        = data.google_storage_project_service_account.gcs[0].member
+  member        = local.service_agent_members.gcs
 
   depends_on = [google_project_service.cloudkms, time_sleep.service_identity_propagation]
 }
 
 # 2) Storage Insights service agent: writes inventory report objects into the bucket.
 resource "google_kms_crypto_key_iam_member" "inventory_bridge_insights_agent_cmek" {
-  for_each      = local.manage_service_agent_bindings ? local.inventory_bridge_kms_keys : toset([])
+  for_each      = local.inventory_bridge_kms_keys
   crypto_key_id = each.value
   role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
-  member        = google_project_service_identity.storageinsights[0].member
+  member        = local.service_agent_members.storageinsights
 
   depends_on = [google_project_service.cloudkms, time_sleep.service_identity_propagation]
 }
 
 # 3) Storage Transfer service agent: reads/writes objects during inventory replication.
 resource "google_kms_crypto_key_iam_member" "inventory_bridge_transfer_agent_cmek" {
-  for_each      = local.manage_service_agent_bindings ? local.inventory_bridge_kms_keys : toset([])
+  for_each      = local.inventory_bridge_kms_keys
   crypto_key_id = each.value
   role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
-  member        = data.google_storage_transfer_project_service_account.storagetransfer[0].member
+  member        = local.service_agent_members.storagetransfer
 
   depends_on = [google_project_service.cloudkms, time_sleep.service_identity_propagation]
 }
@@ -358,10 +358,10 @@ resource "google_project_service_identity" "pubsub" {
 # Pub/Sub service agent: encrypts and decrypts messages published to the delta topic. Without this
 # grant the topic create is rejected, and publishes fail with FAILED_PRECONDITION.
 resource "google_kms_crypto_key_iam_member" "delta_topic_pubsub_agent_cmek" {
-  count         = local.manage_service_agent_bindings && local.delta_topic_cmek_enabled ? 1 : 0
+  count         = local.delta_topic_cmek_enabled ? 1 : 0
   crypto_key_id = local.delta_topic_kms_key
   role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
-  member        = google_project_service_identity.pubsub[0].member
+  member        = local.service_agent_members.pubsub
 
   depends_on = [google_project_service.cloudkms, time_sleep.service_identity_propagation]
 }
