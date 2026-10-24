@@ -1,3 +1,9 @@
+## 0.12.0
+
+- Added the `manage_api_enablement` input. Set it to `false` to skip the Google API enablement when your own tooling enables the APIs.
+- Added the `manage_service_agent_bindings` input. Set it to `false` to skip the Google service agents and their role, bucket, and CMEK grants. The IAM propagation wait is also skipped.
+- Bumped the config template version to `2.12`.
+
 ## 0.11.0
 
 - Added a 60-second wait for new service agents to propagate in IAM before the template grants them roles. This adds the `hashicorp/time` provider.
