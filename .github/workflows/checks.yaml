@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 jobs:
-  changes:
+  pre-commit:
     name: pre-commit
     runs-on: ubuntu-latest
     steps:
@@ -27,10 +27,23 @@ jobs:
       - name: Install Terraform
         uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
 
+      - name: Install terraform-docs
+        env:
+          TERRAFORM_DOCS_VERSION: v0.21.0
+          TERRAFORM_DOCS_SHA256: 2fdd81b8d21ff1498cd559af0dcc5d155835f84600db06d3923e217124fc735a
+        run: |
+          archive="terraform-docs-${TERRAFORM_DOCS_VERSION}-linux-amd64.tar.gz"
+          curl -fsSLo "${archive}" "https://github.com/terraform-docs/terraform-docs/releases/download/${TERRAFORM_DOCS_VERSION}/${archive}"
+          echo "${TERRAFORM_DOCS_SHA256}  ${archive}" | sha256sum --check
+          mkdir -p "${RUNNER_TEMP}/bin"
+          tar -xzf "${archive}" -C "${RUNNER_TEMP}/bin" terraform-docs
+          rm "${archive}"
+          echo "${RUNNER_TEMP}/bin" >> "${GITHUB_PATH}"
+
       - name: Install pre-commit
         run: |
-          pip install pre-commit
-          
+          pip install --require-hashes -r .github/requirements.txt
+
       - name: Run pre-commit
         run: |
           pre-commit run --all-files --show-diff-on-failure
