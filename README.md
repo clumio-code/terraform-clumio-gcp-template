@@ -4,6 +4,8 @@
 
 Terraform module to install the Clumio required GCP resources in the customer GCP account.
 
+See [SECURITY.md](SECURITY.md) for the access this module grants Clumio, the encryption options, and how to revoke access and offboard.
+
 ## Usage
 This module is to be used along with the resource clumio_gcp_connection as some of the inputs for the module are obtained from the output of clumio_gcp_connection resource.
 Below is an example of using the module:
