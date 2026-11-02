@@ -37,7 +37,7 @@ locals {
   clumio_inventory_bridge_token_hash = substr(sha256(local.sanitized_clumio_token), 0, 12)
   # Always update the config_version when changing this file's resources; comment-only edits do
   # not bump it.
-  config_version = "2.11"
+  config_version = "2.12"
   # GCP Marketplace consumption tracking label, required on the customer project resources we create.
   partner_solution_urn = "isol_plb32_0014m00001h36koqaq_shblifz2o2wmkt4vgrzqshobfivee3t2"
   # The template will create a SA if customer has not provided one
@@ -107,6 +107,29 @@ locals {
   # Whether the module manages the GCS custom roles and their bindings. They are gated on GCS being
   # enabled; when manage_gcs_iam is false they are provisioned outside this module.
   manage_gcs_iam = var.is_gcs_enabled && var.manage_gcs_iam
+
+  # Whether the module enables the Google APIs required for GCS backup on the project. Gated on GCS
+  # being enabled; when var.manage_api_enablement is false the APIs are enabled outside this module
+  # and the module creates no google_project_service resources for them.
+  manage_api_enablement = var.is_gcs_enabled && var.manage_api_enablement
+
+  # Whether the module materializes the Google-managed service agents and binds their project-level
+  # roles. Gated on GCS being enabled; when var.manage_service_agent_bindings is false these are
+  # provisioned outside this module. The grants on the bridge buckets, the delta topic, and the
+  # CMEK keys do not follow it; see the member locals below.
+  manage_service_agent_bindings = var.is_gcs_enabled && var.manage_service_agent_bindings
+
+  # Members of the Google-managed agents, spelled out from the project number rather than read off
+  # the agent resources. Used by the grants that stay with the template whatever
+  # manage_service_agent_bindings says: those on the inventory-bridge buckets and the delta topic,
+  # whose names are only known at apply so no external tooling can grant on them, and those on the
+  # CMEK keys, which the template is the one configured to use. The agent resources they would
+  # otherwise index are count 0 when the agents are delegated.
+  storage_insights_agent_member = "serviceAccount:service-${data.google_project.current.number}@gcp-sa-storageinsights.iam.gserviceaccount.com"
+  storage_transfer_agent_member = "serviceAccount:project-${data.google_project.current.number}@storage-transfer-service.iam.gserviceaccount.com"
+  cloud_asset_agent_member      = "serviceAccount:service-${data.google_project.current.number}@gcp-sa-cloudasset.iam.gserviceaccount.com"
+  cloud_storage_agent_member    = "serviceAccount:service-${data.google_project.current.number}@gs-project-accounts.iam.gserviceaccount.com"
+  pubsub_agent_member           = "serviceAccount:service-${data.google_project.current.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
 
   # Custom-role IDs for the GCS roles, kept in one place so they all share one token suffix and
   # the whole id set is visible at once. The bindings still read the role via [0].role_id rather

@@ -1,12 +1,12 @@
 locals {
   # Always update the gcs_version when changing this file's resources; comment-only edits do
   # not bump it.
-  gcs_version = "1.18"
+  gcs_version = "1.19"
 }
 
 # Enable the Google Cloud Storage API
 resource "google_project_service" "storage_api" {
-  count   = var.is_gcs_enabled ? 1 : 0
+  count   = local.manage_api_enablement ? 1 : 0
   project = var.project_id
   service = "storage.googleapis.com"
 
@@ -15,7 +15,7 @@ resource "google_project_service" "storage_api" {
 }
 
 resource "google_project_service" "storagetransfer" {
-  count   = var.is_gcs_enabled ? 1 : 0
+  count   = local.manage_api_enablement ? 1 : 0
   project = var.project_id
   service = "storagetransfer.googleapis.com"
 
@@ -23,7 +23,7 @@ resource "google_project_service" "storagetransfer" {
 }
 
 resource "google_project_service" "pubsub" {
-  count   = var.is_gcs_enabled ? 1 : 0
+  count   = local.manage_api_enablement ? 1 : 0
   project = var.project_id
   service = "pubsub.googleapis.com"
 
@@ -31,7 +31,7 @@ resource "google_project_service" "pubsub" {
 }
 
 resource "google_project_service" "cloudasset" {
-  count   = var.is_gcs_enabled ? 1 : 0
+  count   = local.manage_api_enablement ? 1 : 0
   project = var.project_id
   service = "cloudasset.googleapis.com"
 
@@ -40,7 +40,7 @@ resource "google_project_service" "cloudasset" {
 
 resource "google_project_service_identity" "cloudasset" {
   provider = google-beta
-  count    = var.is_gcs_enabled ? 1 : 0
+  count    = local.manage_service_agent_bindings ? 1 : 0
   project  = var.project_id
   service  = "cloudasset.googleapis.com"
 
@@ -49,9 +49,9 @@ resource "google_project_service_identity" "cloudasset" {
 
 # IAM is eventually consistent about a service agent it has just materialized: a setIamPolicy
 # naming one seconds after the agent is created is rejected with "Service account ... does not
-# exist". Every grant below reads .member off its agent, so Terraform already creates the agent
-# first -- what is missing is propagation time, not a graph edge, which is why the grants take a
-# wait rather than another depends_on.
+# exist". Every grant below reads .member off its agent, or lists the agent in depends_on, so
+# Terraform already creates the agent first -- what is missing is propagation time, not a graph
+# edge, which is why the grants take a wait rather than another depends_on.
 #
 # The two data sources wait for the same reason the identities do. Both are get-or-create: the
 # first read materializes the agent exactly as generateServiceIdentity does, so a grant naming one
@@ -62,7 +62,7 @@ resource "google_project_service_identity" "cloudasset" {
 # this version ships creates it and waits once; every apply after that plans no change here and
 # waits not at all.
 resource "time_sleep" "service_identity_propagation" {
-  count = var.is_gcs_enabled ? 1 : 0
+  count = local.manage_service_agent_bindings ? 1 : 0
 
   # Reading .member off all five agents is itself what orders the sleep after them, so no
   # depends_on is needed. .member rather than .email because the two data sources spell that
@@ -82,7 +82,7 @@ resource "time_sleep" "service_identity_propagation" {
 }
 
 data "google_storage_transfer_project_service_account" "storagetransfer" {
-  count   = var.is_gcs_enabled ? 1 : 0
+  count   = local.manage_service_agent_bindings ? 1 : 0
   project = var.project_id
 
   depends_on = [google_project_service.storagetransfer]
@@ -90,7 +90,7 @@ data "google_storage_transfer_project_service_account" "storagetransfer" {
 
 # STS needs this to create the topic and subscription behind the inventory replication job.
 resource "google_project_iam_member" "storagetransfer_service_agent" {
-  count   = var.is_gcs_enabled ? 1 : 0
+  count   = local.manage_service_agent_bindings ? 1 : 0
   project = var.project_id
   role    = "roles/storagetransfer.serviceAgent"
   member  = data.google_storage_transfer_project_service_account.storagetransfer[0].member
@@ -102,7 +102,7 @@ resource "google_project_iam_member" "storagetransfer_service_agent" {
 }
 
 data "google_storage_project_service_account" "gcs" {
-  count   = var.is_gcs_enabled ? 1 : 0
+  count   = local.manage_service_agent_bindings ? 1 : 0
   project = var.project_id
 
   depends_on = [google_project_service.storage_api]
@@ -112,7 +112,7 @@ data "google_storage_project_service_account" "gcs" {
 # apply time; the GCS service agent needs project-wide publish for cross-bucket replication.
 # Reference: https://docs.cloud.google.com/storage-transfer/docs/cross-bucket-replication#get-required-roles
 resource "google_project_iam_member" "storage_service_agent_pubsub_publisher" {
-  count   = var.is_gcs_enabled ? 1 : 0
+  count   = local.manage_service_agent_bindings ? 1 : 0
   project = var.project_id
   role    = "roles/pubsub.publisher"
   member  = data.google_storage_project_service_account.gcs[0].member
@@ -125,19 +125,26 @@ resource "google_project_iam_member" "storage_service_agent_pubsub_publisher" {
 
 # The Clumio delta feed publishes only to this topic, so the Cloud Asset agent is granted publish
 # on the topic rather than project-wide.
+#
+# Not gated on manage_service_agent_bindings like the project-level agent grants: the topic is this
+# template's, so its grant is too (see local.cloud_asset_agent_member). The depends_on keeps the
+# identity-then-grant order on the managed path, and is a no-op on the delegated one.
 resource "google_pubsub_topic_iam_member" "cloudasset_service_agent_pubsub_publisher" {
   count   = var.is_gcs_enabled ? 1 : 0
   project = var.project_id
   topic   = google_pubsub_topic.customer_delta[0].name
   role    = "roles/pubsub.publisher"
-  member  = google_project_service_identity.cloudasset[0].member
+  member  = local.cloud_asset_agent_member
 
-  depends_on = [time_sleep.service_identity_propagation]
+  depends_on = [
+    google_project_service_identity.cloudasset,
+    time_sleep.service_identity_propagation,
+  ]
 }
 
 # Enable Storage Insights so Clumio can configure GCS inventory reports.
 resource "google_project_service" "storageinsights" {
-  count   = var.is_gcs_enabled ? 1 : 0
+  count   = local.manage_api_enablement ? 1 : 0
   project = var.project_id
   service = "storageinsights.googleapis.com"
 
@@ -148,7 +155,7 @@ resource "google_project_service" "storageinsights" {
 # source buckets when generating inventory reports.
 resource "google_project_service_identity" "storageinsights" {
   provider = google-beta
-  count    = var.is_gcs_enabled ? 1 : 0
+  count    = local.manage_service_agent_bindings ? 1 : 0
   project  = var.project_id
   service  = "storageinsights.googleapis.com"
 
@@ -156,7 +163,7 @@ resource "google_project_service_identity" "storageinsights" {
 }
 
 resource "google_project_iam_member" "insights_collector" {
-  count   = var.is_gcs_enabled ? 1 : 0
+  count   = local.manage_service_agent_bindings ? 1 : 0
   project = var.project_id
   role    = "roles/storage.insightsCollectorService"
   member  = google_project_service_identity.storageinsights[0].member
@@ -165,7 +172,7 @@ resource "google_project_iam_member" "insights_collector" {
 }
 
 resource "google_project_service" "monitoring_api" {
-  count   = var.is_gcs_enabled ? 1 : 0
+  count   = local.manage_api_enablement ? 1 : 0
   project = var.project_id
   service = "monitoring.googleapis.com"
 
@@ -248,6 +255,12 @@ resource "google_storage_bucket" "clumio_inventory_bridge" {
 # For a bucket supplied through using_custom_inventory_bridge_bucket, the identity applying this
 # template must be able to set IAM policy on that bucket (roles/storage.admin, or any role granting
 # storage.buckets.setIamPolicy on it), because these grants are applied to it like any other.
+#
+# Not gated on manage_service_agent_bindings like the project-level agent grants: the buckets are
+# this template's, so their grants are too (see local.storage_insights_agent_member and friends),
+# and gshock stops making them at run time once the template reports gcs_version 1.15 or above.
+# Each grant lists its agent resource in depends_on to keep materialize-then-grant order on the
+# managed path; that edge is a no-op on the delegated one, where the agent must already exist.
 # Reference:
 # https://docs.cloud.google.com/storage-transfer/docs/cross-bucket-replication#get-required-roles
 
@@ -256,9 +269,13 @@ resource "google_storage_bucket_iam_member" "inventory_bridge_insights_agent_obj
   for_each = local.inventory_bridge_bucket_grant_targets
   bucket   = each.value
   role     = "roles/storage.objectCreator"
-  member   = google_project_service_identity.storageinsights[0].member
+  member   = local.storage_insights_agent_member
 
-  depends_on = [google_project_service.storage_api, time_sleep.service_identity_propagation]
+  depends_on = [
+    google_project_service.storage_api,
+    google_project_service_identity.storageinsights,
+    time_sleep.service_identity_propagation,
+  ]
 }
 
 # 2) Storage Transfer service agent: reads the reports back out during inventory replication.
@@ -266,9 +283,13 @@ resource "google_storage_bucket_iam_member" "inventory_bridge_transfer_agent_obj
   for_each = local.inventory_bridge_bucket_grant_targets
   bucket   = each.value
   role     = "roles/storage.objectViewer"
-  member   = data.google_storage_transfer_project_service_account.storagetransfer[0].member
+  member   = local.storage_transfer_agent_member
 
-  depends_on = [google_project_service.storage_api, time_sleep.service_identity_propagation]
+  depends_on = [
+    google_project_service.storage_api,
+    data.google_storage_transfer_project_service_account.storagetransfer,
+    time_sleep.service_identity_propagation,
+  ]
 }
 
 # 3) Storage Transfer service agent: replication updates the source bucket's metadata, so the agent
@@ -285,25 +306,36 @@ resource "google_storage_bucket_iam_member" "inventory_bridge_transfer_agent_buc
   for_each = local.inventory_bridge_bucket_grant_targets
   bucket   = each.value
   role     = "roles/storage.legacyBucketOwner"
-  member   = data.google_storage_transfer_project_service_account.storagetransfer[0].member
+  member   = local.storage_transfer_agent_member
 
-  depends_on = [google_project_service.storage_api, time_sleep.service_identity_propagation]
+  depends_on = [
+    google_project_service.storage_api,
+    data.google_storage_transfer_project_service_account.storagetransfer,
+    time_sleep.service_identity_propagation,
+  ]
 }
 
 # CMEK key access for the service agents that read/write the inventory-bridge bucket. These are
 # created only for keys actually referenced by a region (local.inventory_bridge_kms_keys), so they
 # are a no-op when no CMEK is configured. The deploying identity must be able to set IAM policy on
 # the customer's key (roles/cloudkms.admin, or any role granting cloudkms.cryptoKeys.setIamPolicy
-# on it). A customer who prefers to manage key IAM themselves can pre-grant these roles and remove
-# these resources.
+# on it).
+#
+# Not gated on manage_service_agent_bindings like the project-level agent grants: the template is
+# what uses the key, and which keys it uses is its own configuration, so these grants stay with it
+# as the bucket grants above do. Each one names its agent through a project-number local and lists
+# the agent resource in depends_on, so the managed path keeps materialize-then-grant order and the
+# delegated path indexes no count-0 agent.
 
 # Enable the Cloud KMS API on the client project. With user_project_override + billing_project =
 # project_id, both the setIamPolicy calls below and the CMEK bucket create bill KMS usage to
 # project_id, so the API must be enabled there even when the key itself lives in another project.
 # Gated on there being at least one CMEK key so non-CMEK deployments don't enable an unused API.
 # The delta topic key counts here too: a deployment that encrypts only the topic still needs the API.
+# Read off the variable rather than local.manage_api_enablement: both CMEK operands already carry
+# their own enablement gate, and the topic's is not GCS alone.
 resource "google_project_service" "cloudkms" {
-  count   = length(local.inventory_bridge_kms_keys) > 0 || local.delta_topic_cmek_enabled ? 1 : 0
+  count   = var.manage_api_enablement && (length(local.inventory_bridge_kms_keys) > 0 || local.delta_topic_cmek_enabled) ? 1 : 0
   project = var.project_id
   service = "cloudkms.googleapis.com"
 
@@ -316,9 +348,13 @@ resource "google_kms_crypto_key_iam_member" "inventory_bridge_gcs_agent_cmek" {
   for_each      = local.inventory_bridge_kms_keys
   crypto_key_id = each.value
   role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
-  member        = data.google_storage_project_service_account.gcs[0].member
+  member        = local.cloud_storage_agent_member
 
-  depends_on = [google_project_service.cloudkms, time_sleep.service_identity_propagation]
+  depends_on = [
+    google_project_service.cloudkms,
+    data.google_storage_project_service_account.gcs,
+    time_sleep.service_identity_propagation,
+  ]
 }
 
 # 2) Storage Insights service agent: writes inventory report objects into the bucket.
@@ -326,9 +362,13 @@ resource "google_kms_crypto_key_iam_member" "inventory_bridge_insights_agent_cme
   for_each      = local.inventory_bridge_kms_keys
   crypto_key_id = each.value
   role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
-  member        = google_project_service_identity.storageinsights[0].member
+  member        = local.storage_insights_agent_member
 
-  depends_on = [google_project_service.cloudkms, time_sleep.service_identity_propagation]
+  depends_on = [
+    google_project_service.cloudkms,
+    google_project_service_identity.storageinsights,
+    time_sleep.service_identity_propagation,
+  ]
 }
 
 # 3) Storage Transfer service agent: reads/writes objects during inventory replication.
@@ -336,19 +376,24 @@ resource "google_kms_crypto_key_iam_member" "inventory_bridge_transfer_agent_cme
   for_each      = local.inventory_bridge_kms_keys
   crypto_key_id = each.value
   role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
-  member        = data.google_storage_transfer_project_service_account.storagetransfer[0].member
+  member        = local.storage_transfer_agent_member
 
-  depends_on = [google_project_service.cloudkms, time_sleep.service_identity_propagation]
+  depends_on = [
+    google_project_service.cloudkms,
+    data.google_storage_transfer_project_service_account.storagetransfer,
+    time_sleep.service_identity_propagation,
+  ]
 }
 
 # CMEK key access for the delta feed topic. Keyed off local.delta_topic_kms_key rather than the
 # per-region bucket keys: the topic is project-global, so it takes a single key of its own.
 
 # The Pub/Sub service agent is not created until the API is first used, so it is materialized
-# explicitly before the key grant below can reference it.
+# explicitly before the key grant below names it. On the delegated path it is the customer's to
+# materialize, like the other agents.
 resource "google_project_service_identity" "pubsub" {
   provider = google-beta
-  count    = local.delta_topic_cmek_enabled ? 1 : 0
+  count    = local.manage_service_agent_bindings && local.delta_topic_cmek_enabled ? 1 : 0
   project  = var.project_id
   service  = "pubsub.googleapis.com"
 
@@ -361,9 +406,13 @@ resource "google_kms_crypto_key_iam_member" "delta_topic_pubsub_agent_cmek" {
   count         = local.delta_topic_cmek_enabled ? 1 : 0
   crypto_key_id = local.delta_topic_kms_key
   role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
-  member        = google_project_service_identity.pubsub[0].member
+  member        = local.pubsub_agent_member
 
-  depends_on = [google_project_service.cloudkms, time_sleep.service_identity_propagation]
+  depends_on = [
+    google_project_service.cloudkms,
+    google_project_service_identity.pubsub,
+    time_sleep.service_identity_propagation,
+  ]
 }
 
 resource "google_project_iam_custom_role" "clumio_gcs_inventory_permission" {
