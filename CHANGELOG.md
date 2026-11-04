@@ -1,3 +1,8 @@
+## 0.12.1
+
+- Added a trust model and shared responsibility section to `SECURITY.md`.
+- Documented in `gcs.tf` why every API the module enables stays enabled on destroy.
+
 ## 0.12.0
 
 - Added the `manage_api_enablement` input. Set it to `false` to skip the Google API enablement when your own tooling enables the APIs.
