@@ -10,7 +10,9 @@ resource "google_project_service" "storage_api" {
   project = var.project_id
   service = "storage.googleapis.com"
 
-  # Ensures the API stays enabled if the resource is removed from Terraform
+  # Left enabled on destroy, here and on every API below: other workloads in the project may use
+  # it, and disabling an API that enabled services depend on fails. SECURITY.md lists what
+  # offboarding leaves behind.
   disable_on_destroy = false
 }
 
