@@ -22,27 +22,27 @@ Set `manage_service_account_impersonation = false` to provision the impersonatio
 
 When `is_gcs_enabled` and `manage_gcs_iam` are both true, the customer service account receives three project-level custom roles. **They are bound at the project, not per bucket, so they apply to every bucket in the project, including buckets created later.**
 
-| Role | Lets Clumio |
-|------|-------------|
-| `ClumioGCSInventoryPermissions` | List and read metadata of every bucket; read Cloud Monitoring time series project-wide |
-| `ClumioGCSBackupPermissions` | Read every object in every bucket; create buckets and update bucket configuration (including lifecycle and notification settings); manage Storage Transfer Service jobs and Storage Insights inventory reports; read Cloud Monitoring time series project-wide |
-| `ClumioGCSRestorePermissions` | Create, overwrite, and delete objects in every bucket |
+| Role                            | Lets Clumio                                                                                                                                                                                                                                                    |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ClumioGCSInventoryPermissions` | List and read metadata of every bucket; read Cloud Monitoring time series project-wide                                                                                                                                                                         |
+| `ClumioGCSBackupPermissions`    | Read every object in every bucket; create buckets and update bucket configuration (including lifecycle and notification settings); manage Storage Transfer Service jobs and Storage Insights inventory reports; read Cloud Monitoring time series project-wide |
+| `ClumioGCSRestorePermissions`   | Create, overwrite, and delete objects in every bucket                                                                                                                                                                                                          |
 
 None of the roles grants `storage.buckets.delete`, permission to read or change project or bucket IAM policy, or access to any service other than Cloud Storage, Storage Transfer Service, Storage Insights, and Cloud Monitoring.
 
 The module also grants Google-managed service agents the access the inventory pipeline needs: project-level `roles/storage.insightsCollectorService` (Storage Insights), `roles/storagetransfer.serviceAgent` (Storage Transfer), and `roles/pubsub.publisher` (Cloud Storage), plus grants scoped to the inventory bridge buckets and the delta topic. These identities are operated by Google, not by Clumio.
 
-To scope Clumio's data access more narrowly than the whole project, set `manage_gcs_iam = false` and bind equivalent permissions yourself, for example on individual buckets. Clumio can then protect only the buckets those bindings cover.
+To scope Clumio's object access more narrowly than the whole project, set `manage_gcs_iam = false` and provision the required permissions yourself. Bind bucket- and object-scoped permissions on the selected buckets, while retaining project-level bindings for project-scoped operations such as bucket listing and creation, Cloud Monitoring reads, Storage Transfer Service jobs, and Storage Insights report configurations. Bucket-only bindings are not sufficient for inventory and backup.
 
 ### Shared responsibility
 
-| Clumio is responsible for | You are responsible for |
-|---------------------------|-------------------------|
-| Protecting the Clumio service account and the credentials it uses | Who in your organization can apply, change, or destroy this module, and who can impersonate the customer service account |
-| Using the granted access only to inventory, back up, and restore the data you protect | Protecting your Terraform state, which records the Clumio token and the identities above |
-| | Enabling Data Access audit logs and monitoring the customer service account's activity |
-| | Creating, rotating, and controlling access to any CMEK keys you supply |
-| | Revoking access and removing leftover resources when you offboard (see below) |
+| Clumio is responsible for                                                             | You are responsible for                                                                                                  |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Protecting the Clumio service account and the credentials it uses                     | Who in your organization can apply, change, or destroy this module, and who can impersonate the customer service account |
+| Using the granted access only to inventory, back up, and restore the data you protect | Protecting your Terraform state, which records the Clumio token and the identities above                                 |
+|                                                                                       | Enabling Data Access audit logs and monitoring the customer service account's activity                                   |
+|                                                                                       | Creating, rotating, and controlling access to any CMEK keys you supply                                                   |
+|                                                                                       | Revoking access and removing leftover resources when you offboard (see below)                                            |
 
 ### Encryption
 
